@@ -24,6 +24,7 @@ cp -r skills/* ~/.claude/skills/
 | Skill | Description |
 |-------|-------------|
 | `ucr_hpcc_cluster` | UCR HPCC cluster commands - Slurm jobs, modules, storage |
+| `create_skill` | Guide for creating well-structured Claude Code skills |
 
 ## Usage
 

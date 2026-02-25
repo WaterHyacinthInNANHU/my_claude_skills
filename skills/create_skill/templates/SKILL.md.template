@@ -1,0 +1,23 @@
+# skill_name
+
+Brief description of what this skill does.
+
+## Section 1
+
+| Command | Description |
+|---------|-------------|
+| `command1` | Description of command1 |
+| `command2` | Description of command2 |
+
+## Section 2
+
+```bash
+# Example usage
+command --flag value
+```
+
+## Section 3
+
+- Point 1
+- Point 2
+- Point 3
