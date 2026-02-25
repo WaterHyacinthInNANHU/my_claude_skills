@@ -4,28 +4,10 @@ Custom Claude Code skills for common workflows.
 
 ## Installation
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/my_claude_skill.git
-   ```
-
-2. Add to your Claude Code settings (`~/.claude/settings.json`):
-   ```json
-   {
-     "skills": [
-       "/path/to/my_claude_skill"
-     ]
-   }
-   ```
-
-   Or for project-specific setup, add to `.claude/settings.json` in your project:
-   ```json
-   {
-     "skills": [
-       "/path/to/my_claude_skill"
-     ]
-   }
-   ```
+```bash
+git clone https://github.com/WaterHyacinthInNANHU/my_claude_skills.git
+cp -r my_claude_skills/skills/* ~/.claude/skills/
+```
 
 ## Available Skills
 

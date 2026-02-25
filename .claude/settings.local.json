@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:hpcc.ucr.edu)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nAdd HPC cluster skill for UCR HPCC\n\nAdd hpc_cluster.md skill covering Slurm job submission, module system,\nstorage paths, and common workflows for the UCR HPCC cluster.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ]
+  }
+}
