@@ -9,6 +9,16 @@ git clone https://github.com/WaterHyacinthInNANHU/my_claude_skills.git
 cp -r my_claude_skills/skills/* ~/.claude/skills/
 ```
 
+## Update
+
+Pull the latest skills:
+
+```bash
+cd my_claude_skills
+git pull
+cp -r skills/* ~/.claude/skills/
+```
+
 ## Available Skills
 
 | Skill | Description |
