@@ -1,4 +1,4 @@
-# hpc_cluster
+# ucr_hpcc_cluster
 
 Help users work with the UCR HPCC (High Performance Computing Center) cluster. This skill provides commands for connecting, submitting jobs, managing software, and handling data storage.
 

@@ -13,7 +13,7 @@ cp -r my_claude_skills/skills/* ~/.claude/skills/
 
 | Skill | Description |
 |-------|-------------|
-| `hpc_cluster` | UCR HPCC cluster commands - Slurm jobs, modules, storage |
+| `ucr_hpcc_cluster` | UCR HPCC cluster commands - Slurm jobs, modules, storage |
 
 ## Usage
 
