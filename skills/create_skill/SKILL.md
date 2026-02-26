@@ -1,3 +1,8 @@
+---
+name: create_skill
+description: Guide for creating well-structured Claude Code skills following best practices.
+---
+
 # create_skill
 
 Guide for creating well-structured Claude Code skills following best practices.
@@ -18,7 +23,16 @@ skills/
 
 ## SKILL.md Structure
 
-The main skill file should contain:
+The main skill file **must** start with YAML frontmatter for discoverability:
+
+```yaml
+---
+name: skill_name
+description: One-line summary of what the skill does.
+---
+```
+
+Then include:
 
 1. **Title** - Skill name as H1 header (must match directory name)
 2. **Description** - One-line summary of what the skill does
