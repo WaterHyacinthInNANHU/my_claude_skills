@@ -265,6 +265,99 @@ Note: Preempt partitions require `-A preempt`. Resources don't count against lab
 
 ---
 
+## Example 9: New Project Setup from Scratch
+
+**User Request:** "I'm starting a new Python project on the cluster"
+
+### Step 1: Set Up Directory Structure
+
+```bash
+# Create project on bigdata (not home)
+mkdir -p /bigdata/labname/username/workspace/my_project
+mkdir -p /bigdata/labname/username/workspace/my_project/{scripts,data,results}
+
+# Symlink for easy access (one-time)
+ln -sf /bigdata/labname/username/workspace ~/workspace
+
+cd ~/workspace/my_project
+```
+
+### Step 2: Redirect Caches to Bigdata (One-Time)
+
+Create `~/.condarc`:
+```yaml
+channels:
+  - conda-forge
+  - defaults
+pkgs_dirs:
+  - ~/bigdata/.conda/pkgs
+envs_dirs:
+  - ~/bigdata/.conda/envs
+auto_activate_base: false
+```
+
+Add to `~/.bashrc`:
+```bash
+export PIP_CACHE_DIR=/bigdata/labname/username/.cache/pip
+export UV_CACHE_DIR=/bigdata/labname/username/.cache/uv
+export HF_HOME=/bigdata/labname/username/.cache/huggingface
+```
+
+### Step 3a: Create Conda Environment
+
+```bash
+# Install on compute node
+srun -p short -c 4 --mem=10g --pty bash -l
+module load miniconda3
+mamba create -n my_project python=3.11
+conda activate my_project
+mamba install numpy pandas matplotlib
+```
+
+Job script using conda:
+```bash
+#!/bin/bash -l
+#SBATCH -p epyc --cpus-per-task=4 --mem=16G --time=4:00:00
+module load miniconda3
+conda activate my_project
+cd ~/workspace/my_project
+python scripts/analyze.py
+```
+
+### Step 3b: Or Use uv Instead
+
+```bash
+# Install uv (one-time)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+cd ~/workspace/my_project
+uv init
+uv add numpy pandas matplotlib
+```
+
+Job script using uv:
+```bash
+#!/bin/bash -l
+#SBATCH -p epyc --cpus-per-task=4 --mem=16G --time=4:00:00
+cd ~/workspace/my_project
+uv run python scripts/analyze.py
+```
+
+### Step 4: R Project Setup (If Needed)
+
+Create `~/.Renviron` to redirect R libraries to bigdata:
+```
+R_LIBS_USER=/bigdata/labname/username/R/%p-library/%v
+```
+
+Then install packages normally in R:
+```r
+install.packages("tidyverse")
+BiocManager::install("DESeq2")
+```
+
+---
+
 ## Common Workflows
 
 ### Check Quota Before Large Jobs

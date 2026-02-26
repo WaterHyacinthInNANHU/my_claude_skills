@@ -254,6 +254,133 @@ srun -p short_gpu --constraint "gpu_latest" --gpus=1 --pty bash -l
 | `--array=1-N` | Array job |
 | `--mail-type=ALL` | Email notifications |
 
+## Best Practices: Project & Environment Setup
+
+### Directory Strategy
+
+Home (`/rhome`) is only 20GB — use it for configs and dotfiles only. Put projects, environments, and data on bigdata:
+
+```
+/rhome/username/              # 20GB — configs, small scripts, symlinks
+├── .condarc                  # points conda to bigdata
+├── .bashrc                   # shell config
+├── .Renviron                 # R library path → bigdata
+└── workspace -> /bigdata/labname/username/workspace  # symlink
+
+/bigdata/labname/username/    # Lab quota — bulk storage
+├── workspace/                # project code
+│   └── my_project/
+│       ├── scripts/
+│       ├── results/
+│       └── .venv/            # uv venv (if using uv)
+├── .conda/                   # conda envs + package cache
+│   ├── envs/
+│   └── pkgs/
+├── .cache/                   # pip, uv, huggingface caches
+│   ├── uv/
+│   └── huggingface/
+└── R/                        # R libraries
+```
+
+Create a symlink for convenience:
+```bash
+ln -s /bigdata/labname/username/workspace ~/workspace
+```
+
+### Python: Conda/Mamba Setup
+
+**Step 1: Redirect conda storage** — create `~/.condarc`:
+```yaml
+channels:
+  - conda-forge
+  - defaults
+pkgs_dirs:
+  - ~/bigdata/.conda/pkgs
+envs_dirs:
+  - ~/bigdata/.conda/envs
+auto_activate_base: false
+```
+
+**Step 2: Create environments on a compute node** (not the head node):
+```bash
+srun -p short -c 4 --mem=10g --pty bash -l
+module load miniconda3
+mamba create -n myproject python=3.11
+conda activate myproject
+mamba install numpy pandas scikit-learn
+```
+
+### Python: uv Setup
+
+`uv` is not installed cluster-wide but can be installed per-user:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Redirect cache to bigdata — add to `~/.bashrc`:
+```bash
+export UV_CACHE_DIR=/bigdata/labname/username/.cache/uv
+```
+
+Use in projects:
+```bash
+cd /bigdata/labname/username/workspace/my_project
+uv init                       # creates pyproject.toml
+uv add numpy pandas           # adds dependencies + creates .venv
+uv run python my_script.py    # runs with the project's env
+```
+
+In a job script, `uv run` handles activation automatically:
+```bash
+#!/bin/bash -l
+#SBATCH -p epyc --cpus-per-task=4 --mem=16G --time=4:00:00
+cd /bigdata/labname/username/workspace/my_project
+uv run python my_script.py
+```
+
+### R Setup
+
+Redirect R library path to bigdata — create `~/.Renviron`:
+```
+R_LIBS_USER=/bigdata/labname/username/R/%p-library/%v
+```
+
+Then in R:
+```r
+# Packages install to bigdata automatically
+install.packages("ggplot2")
+```
+
+Note: Reinstall R packages when upgrading R versions — they aren't backward compatible across versions.
+
+### Cache Management
+
+Many tools cache to home by default. Redirect them to bigdata in `~/.bashrc`:
+```bash
+# Conda (handled by .condarc, but pip within conda also caches)
+export PIP_CACHE_DIR=/bigdata/labname/username/.cache/pip
+
+# uv
+export UV_CACHE_DIR=/bigdata/labname/username/.cache/uv
+
+# Hugging Face models
+export HF_HOME=/bigdata/labname/username/.cache/huggingface
+
+# Singularity/Apptainer containers
+export SINGULARITY_CACHEDIR=/bigdata/labname/username/.cache/singularity
+```
+
+### Data Storage Strategy
+
+| What | Where | Why |
+|------|-------|-----|
+| Code & scripts | `/bigdata/.../workspace/` | Version-controlled, plenty of space |
+| Conda/uv envs | `/bigdata/.../` (via config) | Envs can be multi-GB |
+| Raw input data | `/bigdata/.../data/` | Persistent, shared with lab |
+| Job results | `/bigdata/.../results/` | Persistent, backed up weekly |
+| Temp/intermediate | `$SCRATCH` (in jobs) | Fast local SSD, auto-cleaned |
+| Configs/dotfiles | `/rhome/` | Small, backed up daily |
+
 ## Common Slurm Errors
 
 | Error | Cause | Fix |
