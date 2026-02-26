@@ -1,3 +1,8 @@
+---
+name: ucr_hpcc_cluster
+description: Help users work with the UCR HPCC (High Performance Computing Center) cluster. Provides commands for connecting, submitting jobs, managing software, and handling data storage.
+---
+
 # ucr_hpcc_cluster
 
 Help users work with the UCR HPCC (High Performance Computing Center) cluster. This skill provides commands for connecting, submitting jobs, managing software, and handling data storage.
