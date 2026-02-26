@@ -18,6 +18,7 @@ conda activate pytorch_env
 
 # Verify GPU is available
 nvidia-smi
+echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 
 # Run your GPU command
 echo "Job started on $(hostname) at $(date)"

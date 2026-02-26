@@ -8,7 +8,7 @@
 #SBATCH --job-name="my_job"
 #SBATCH --output=job_%j.out
 #SBATCH --error=job_%j.err
-#SBATCH -p batch
+#SBATCH -p epyc
 
 # Load required modules
 module load miniconda3

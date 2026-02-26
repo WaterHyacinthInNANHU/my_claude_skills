@@ -8,7 +8,7 @@
 #SBATCH --job-name="array_job"
 #SBATCH --output=array_%A_%a.out
 #SBATCH --error=array_%A_%a.err
-#SBATCH -p batch
+#SBATCH -p epyc
 #SBATCH --array=1-100
 
 # Each task gets a unique ID from 1 to 100

@@ -74,10 +74,15 @@ Then open `http://localhost:8888` in your browser.
 #SBATCH --time=1-00:00:00
 #SBATCH --job-name="pytorch_train"
 #SBATCH -p gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:a100:1
 
 module load miniconda3
+module load cuda
 conda activate pytorch_env
+
+# Verify GPU assignment
+nvidia-smi
+echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
 
 python train.py --epochs 100 --batch-size 32
 ```
@@ -105,7 +110,7 @@ squeue -u $USER                  # Monitor queue
 #SBATCH --mem=8G
 #SBATCH --time=1:00:00
 #SBATCH --job-name="param_sweep"
-#SBATCH -p batch
+#SBATCH -p epyc
 #SBATCH --array=1-100
 
 # Each task gets a unique ID
@@ -126,6 +131,8 @@ scancel JOBID                    # Cancel entire array
 scancel JOBID_50                 # Cancel specific task
 ```
 
+Note: Array jobs have a 2500 job limit per array submission.
+
 ---
 
 ## Example 5: Setting Up a New Conda Environment
@@ -141,13 +148,13 @@ srun -p short -c 4 --mem=10g --pty bash -l
 # Load conda
 module load miniconda3
 
-# Create environment
-conda create -n bioinfo python=3.10
+# Create environment (mamba is faster)
+mamba create -n bioinfo python=3.10
 
 # Activate and install
 conda activate bioinfo
-conda install -c bioconda samtools bwa bowtie2
-conda install -c conda-forge pandas numpy scipy
+mamba install -c bioconda samtools bwa bowtie2
+mamba install -c conda-forge pandas numpy scipy
 
 # Verify
 conda list
@@ -166,6 +173,14 @@ pkgs_dirs:
 envs_dirs:
   - ~/bigdata/.conda/envs
 auto_activate_base: false
+```
+
+### Register as Jupyter Kernel (Optional)
+
+```bash
+conda activate bioinfo
+conda install ipykernel
+python -m ipykernel install --user --name bioinfo --display-name "Bioinfo (Python 3.10)"
 ```
 
 ---
@@ -191,6 +206,8 @@ conda activate myenv
 
 python process_large_file.py --input bigfile.dat --output results.csv
 ```
+
+Note: The `highmem` partition requires a minimum memory request of 100GB.
 
 ---
 
@@ -218,6 +235,36 @@ mpirun my_simulation input.dat
 
 ---
 
+## Example 8: Preemptible Jobs for Extra Resources
+
+**User Request:** "I need more cores than my lab limit allows"
+
+### Preemptible Job Script
+
+```bash
+#!/bin/bash -l
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
+#SBATCH --job-name="preempt_job"
+#SBATCH -p preempt
+#SBATCH -A preempt
+
+# Preemptible jobs can be killed anytime (1-min grace period)
+# Use checkpointing to save progress periodically
+
+module load miniconda3
+conda activate myenv
+
+python long_running_task.py --checkpoint-dir ./checkpoints
+```
+
+Note: Preempt partitions require `-A preempt`. Resources don't count against lab quotas, but jobs may be requeued at any time.
+
+---
+
 ## Common Workflows
 
 ### Check Quota Before Large Jobs
@@ -232,6 +279,7 @@ check_quota bigdata
 ```bash
 # List available snapshots
 ls /rhome/.snapshots/
+mmlssnapshot home
 
 # Copy file from snapshot
 cp /rhome/.snapshots/daily_YYYYMMDD/username/deleted_file.txt ~/
@@ -248,4 +296,34 @@ cat slurm-JOBID.out
 
 # Check if ran out of memory or time
 seff JOBID
+```
+
+### Check Resource Efficiency
+
+After a job completes, review efficiency to optimize future requests:
+```bash
+seff JOBID
+# Look for:
+#   CPU Efficiency - low means over-requested cores
+#   Memory Efficiency - aim for ~80% (request ~20% more than needed)
+```
+
+### Use Scratch for Fast I/O
+
+```bash
+#!/bin/bash -l
+#SBATCH -p epyc
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=16G
+#SBATCH --time=4:00:00
+
+# Copy data to fast node-local scratch
+cp /rhome/$USER/large_input.dat $SCRATCH/
+cd $SCRATCH
+
+# Run with fast local I/O
+python process.py --input large_input.dat --output results.dat
+
+# Copy results back
+cp results.dat /rhome/$USER/results/
 ```
