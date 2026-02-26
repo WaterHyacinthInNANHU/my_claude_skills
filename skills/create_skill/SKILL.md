@@ -113,13 +113,59 @@ def example():
 
 5. Add templates for common tasks
 
-## Installation Location
+## Installation Locations
 
-Skills are installed to `~/.claude/skills/`:
+Skills can be installed globally or kept in a local repository.
+
+### Global Skills (`~/.claude/skills/`)
+
+Available in all Claude Code sessions:
 
 ```bash
 cp -r skills/my_skill ~/.claude/skills/
 ```
+
+### Local Repository Skills
+
+Keep skills in a git repository for version control and sharing:
+
+```
+my_skills_repo/
+├── .claude/
+│   └── settings.json    # Register skills path
+└── skills/
+    └── my_skill/
+        └── SKILL.md
+```
+
+Create `.claude/settings.json` in your repo root:
+
+```json
+{
+  "skills": {
+    "paths": ["skills"]
+  }
+}
+```
+
+Or add to existing project:
+
+```json
+{
+  "skills": {
+    "paths": [".claude/skills"]
+  }
+}
+```
+
+Skills are discovered when Claude Code runs in that directory.
+
+### Comparison
+
+| Method | Use Case |
+|--------|----------|
+| Global (`~/.claude/skills/`) | Personal tools, always available |
+| Local repo | Project-specific, shareable, version-controlled |
 
 ## Skill Naming
 
