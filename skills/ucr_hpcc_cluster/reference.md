@@ -52,6 +52,9 @@
 |---------|-------------|
 | `sinfo` | Show partition info |
 | `sinfo -p PARTITION` | Show specific partition |
+| `sinfo -N -o "%N %G %c %m %P %T" --noheader \| grep gpu` | All GPU nodes with type, CPUs, RAM, state |
+| `sinfo -p gpu,short_gpu,preempt_gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12,Partition:14" --noheader` | GPU availability (idle vs used) |
+| `scontrol show node NODENAME` | Full details for a specific node |
 | `group_cpus` | Cores used by your group |
 | `slurm_limits` | Your resource limits |
 | `jobMonitor` | Cluster activity summary |
@@ -78,7 +81,7 @@
 | `--gres=gpu:N` | Request N GPUs | `--gres=gpu:2` |
 | `--gres=gpu:TYPE:N` | Request specific GPU type | `--gres=gpu:a100:1` |
 
-Available GPU types: K80, P100, A100, H100.
+**Do not assume a fixed GPU list.** Always run `sinfo -N -o "%N %G %c %m %P %T" --noheader | grep gpu` to discover current GPU types and availability. Nodes change frequently.
 
 ### Job Configuration
 

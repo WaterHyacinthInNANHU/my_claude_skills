@@ -83,8 +83,6 @@ module load <software>
 
 ### GPU Jobs
 
-Available GPU types: K80, P100, A100, H100.
-
 ```bash
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1              # 1 GPU (any type)
@@ -93,6 +91,8 @@ Available GPU types: K80, P100, A100, H100.
 ```
 
 The assigned GPUs are exposed via the `CUDA_VISIBLE_DEVICES` environment variable.
+
+**Important:** GPU types and availability change over time. Always auto-detect using the commands in the "Auto-Detecting Cluster Resources" section below rather than assuming a fixed list.
 
 ### Preemptible Jobs
 
@@ -236,6 +236,122 @@ Request specific hardware:
 srun -p short --constraint intel --pty bash -l
 srun -p short --constraint "amd&(rome|milan)" --pty bash -l
 srun -p short_gpu --constraint "gpu_latest" --gpus=1 --pty bash -l
+```
+
+## Auto-Detecting Cluster Resources
+
+**IMPORTANT:** When the user asks about available GPUs, nodes, hardware, or cluster resources — or when writing a job script that targets specific hardware — ALWAYS run the detection commands below to get **live** data. Do NOT rely on hardcoded lists, as nodes are frequently added, removed, or taken down for maintenance.
+
+### GPU inventory (all GPU nodes across all partitions)
+
+Run this to get a per-node breakdown of GPU type, count, CPUs, memory, state, and partitions:
+
+```bash
+sinfo -N -o "%N %G %c %m %P %T" --noheader 2>/dev/null | grep -i gpu | sort -t'u' -k2 -n | uniq
+```
+
+### Summary by partition
+
+Run this for a partition-level view (which GPU types are in which partition):
+
+```bash
+sinfo -o "%P %N %G %a %T" --noheader 2>/dev/null | grep -i gpu | sort
+```
+
+### Current GPU availability (idle vs in-use)
+
+Run this to see how many GPUs are free right now:
+
+```bash
+sinfo -p gpu,short_gpu,preempt_gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12,Partition:14" --noheader 2>/dev/null
+```
+
+### Node details (specific node)
+
+To inspect a specific node's full hardware:
+
+```bash
+scontrol show node NODENAME
+```
+
+### When to auto-detect
+
+Run detection commands automatically when:
+- User asks "what GPUs are available?", "how many A100s?", "show me the nodes", etc.
+- User asks which GPU type to use for their workload
+- Writing or modifying a job script that requests GPU resources (to verify the requested GPU type actually exists and is available)
+- User asks about cluster capacity or current utilization
+
+### Interpreting results
+
+When presenting results to the user:
+- Show a clean summary table (node, GPU type, count, CPUs, RAM, partitions, state)
+- Highlight which nodes are `down` or `drain` (unavailable)
+- Note partition restrictions (e.g., some GPUs only in `short_gpu`/`preempt_gpu`, not in `gpu`)
+- Calculate totals by GPU type
+- Mention per-user limits: 4 GPUs and 48 cores in `gpu`/`short_gpu`; 1 GPU in `preempt_gpu`; group limit of 8 GPUs
+
+## Estimating Wait Time & Choosing the Best Partition
+
+**IMPORTANT:** When a user wants to submit a GPU job, proactively estimate queue wait times and recommend the best partition/GPU combination. Run these commands and analyze the results.
+
+### Step 1: Check current GPU utilization
+
+See which GPUs are in use vs available on each node:
+
+```bash
+sinfo -p gpu,short_gpu,preempt_gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12,Partition:14" --noheader 2>/dev/null
+```
+
+Compare `Gres` (total) vs `GresUsed` (in use). For example, `gpu:a100:8` with `gpu:a100:6(IDX:0-5)` means 2 A100s are free on that node.
+
+### Step 2: Check pending queue depth per partition
+
+```bash
+squeue -p gpu --state=PENDING -o "%i %P %u %T %l %S %r" --noheader 2>/dev/null | head -20
+squeue -p short_gpu --state=PENDING --noheader 2>/dev/null | wc -l
+squeue -p preempt_gpu --state=PENDING --noheader 2>/dev/null | wc -l
+```
+
+The `%S` field shows the estimated start time (may be `N/A` for far-out jobs). The `%r` field shows the pending reason.
+
+### Step 3: Check running jobs to estimate when GPUs free up
+
+```bash
+squeue -p gpu,short_gpu,preempt_gpu --state=RUNNING -o "%i %P %N %u %M %l %b" --noheader 2>/dev/null
+```
+
+Key columns: `%M` = elapsed time, `%l` = time limit, `%b` = GRES (GPU) allocation. Calculate remaining time as `time_limit - elapsed` to estimate when each GPU becomes available.
+
+### Step 4: Analyze and recommend
+
+After gathering the data above, analyze it to provide a recommendation:
+
+1. **Free GPUs right now?** If any GPUs show `Gres` > `GresUsed`, those are immediately available. Recommend submitting there.
+2. **Soonest availability:** Look at running jobs' remaining time (`time_limit - elapsed`). The job finishing soonest frees up a GPU first.
+3. **Queue depth:** Fewer pending jobs = shorter wait. Compare pending counts across `gpu`, `short_gpu`, and `preempt_gpu`.
+4. **Partition trade-offs:** Present options like:
+   - `gpu` partition: up to 7-day jobs, but may have a long queue
+   - `short_gpu`: 2-hour max, but often empty queue (good for quick tests)
+   - `preempt_gpu`: up to 24 hours, can be preempted, but often has idle GPUs (requires `-A preempt`)
+5. **GPU type matters:** If user needs a specific GPU (e.g., A100 for large models), check availability of that type specifically. If flexible, recommend whichever type has the shortest wait.
+6. **Specific node targeting:** If a particular node has free GPUs, the user can request it with `--nodelist=gpu09` (not guaranteed but can help).
+
+### Example recommendation format
+
+Present findings as a concise summary:
+
+```
+Current GPU availability:
+- gpu06: 0/8 A100 free (next available in ~1d 2h)
+- gpu07: 2/8 A100 free  <-- submit here
+- gpu09: 9/10 Ada 6000 free (short_gpu/preempt_gpu only)
+
+Recommendation: Submit to gpu partition targeting A100 (2 free on gpu07).
+If job is <2 hours, use short_gpu for faster scheduling.
+If job is <24 hours and can tolerate preemption, preempt_gpu has 9 idle Ada 6000s on gpu09.
+
+Pending queue: gpu=28 jobs, short_gpu=0, preempt_gpu=1
 ```
 
 ## Common Slurm Flags
