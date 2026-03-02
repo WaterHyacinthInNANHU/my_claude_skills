@@ -358,6 +358,123 @@ BiocManager::install("DESeq2")
 
 ---
 
+## Example 10: Auto GPU Selection Script
+
+**User Request:** "Create a GPU job script that automatically picks the best available GPU"
+
+### Script with Auto-Submit
+
+```bash
+#!/bin/bash -l
+#SBATCH --job-name="train_model"
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=2:00:00
+#SBATCH -p short_gpu
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+set -euo pipefail
+
+# Auto GPU selection: when run as ./train.sh, detects best GPU and sbatch's itself
+if [ -z "${SLURM_JOB_ID:-}" ]; then
+    PARTITION="${PARTITION:-short_gpu}"
+    auto_select_gpu() {
+        local -a preferred=("h100" "a100" "ada6000" "p100")
+        local nodes
+        nodes=$(sinfo -N -p "$PARTITION" -o "%N %G %T" --noheader 2>/dev/null)
+        for gtype in "${preferred[@]}"; do
+            if echo "$nodes" | grep "gpu:${gtype}:" | grep -iq "idle\|mix"; then
+                echo "$gtype"; return 0
+            fi
+        done
+        return 1
+    }
+    mkdir -p logs
+    GPU_TYPE=$(auto_select_gpu) || GPU_TYPE=""
+    if [ -n "$GPU_TYPE" ]; then
+        echo "Auto-selected GPU: $GPU_TYPE (partition: $PARTITION)"
+        exec sbatch -p "$PARTITION" --gres="gpu:${GPU_TYPE}:1" "$0" "$@"
+    else
+        exec sbatch -p "$PARTITION" "$0" "$@"
+    fi
+fi
+
+module load cuda/12.1
+export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+
+echo "Node: $(hostname) | GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null)"
+
+source .venv/bin/activate
+python train.py --epochs 100
+```
+
+### Run It
+
+```bash
+# Direct run — auto-selects GPU and submits via sbatch
+./train.sh
+
+# Override partition for longer jobs
+PARTITION=gpu ./train.sh
+
+# Still works with manual sbatch (auto-submit is skipped inside SLURM)
+sbatch -p gpu --gres=gpu:a100:1 train.sh
+```
+
+---
+
+## Example 11: Job Monitoring Utility
+
+**User Request:** "I need a quick way to check my jobs and tail logs"
+
+### Set Up monitor.sh
+
+Copy the template into your project:
+```bash
+cp /path/to/templates/monitor.sh scripts/monitor.sh
+chmod +x scripts/monitor.sh
+```
+
+### Usage
+
+```bash
+# Show all your jobs
+./scripts/monitor.sh
+
+# Live-updating job list (refreshes every 5s)
+./scripts/monitor.sh watch
+
+# Tail the stdout log of a running job
+./scripts/monitor.sh log 12345678
+
+# Tail the stderr log
+./scripts/monitor.sh err 12345678
+
+# Full job details (node, resources, state)
+./scripts/monitor.sh info 12345678
+
+# Check resource efficiency after completion
+./scripts/monitor.sh eff 12345678
+
+# Show all GPU nodes and availability
+./scripts/monitor.sh gpus
+
+# Cancel a specific job
+./scripts/monitor.sh cancel 12345678
+
+# Cancel all your jobs
+./scripts/monitor.sh cancel all
+```
+
+Note: Adjust the `LOG_DIR` variable at the top of monitor.sh if your logs are not in `logs/`.
+
+---
+
 ## Common Workflows
 
 ### Check Quota Before Large Jobs

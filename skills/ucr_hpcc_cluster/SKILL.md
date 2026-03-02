@@ -497,6 +497,147 @@ export SINGULARITY_CACHEDIR=/bigdata/labname/username/.cache/singularity
 | Temp/intermediate | `$SCRATCH` (in jobs) | Fast local SSD, auto-cleaned |
 | Configs/dotfiles | `/rhome/` | Small, backed up daily |
 
+## Best Practices: Writing Production sbatch Scripts
+
+When creating sbatch scripts for real workloads (not just quick tests), follow these patterns to make scripts robust, self-documenting, and easy to reuse.
+
+### Script Structure
+
+A well-structured sbatch script has these sections in order:
+
+1. **SBATCH directives** — resource requests
+2. **Safety flags** — `set -euo pipefail` (fail fast on errors)
+3. **Auto GPU selection & self-submit** (optional, for GPU jobs)
+4. **Path definitions** — all paths in one place at the top
+5. **Environment setup** — module loads, SSL fixes, venv setup
+6. **Diagnostics banner** — print node, GPU, CUDA info for debugging
+7. **Work steps** — with skip-if-done guards for idempotency
+
+### Auto GPU Selection & Self-Submit
+
+This pattern lets you run a GPU script directly (`./script.sh`) instead of manually typing `sbatch -p ... --gres=gpu:TYPE:1 script.sh`. When run outside SLURM, it auto-detects the best available GPU type and submits itself:
+
+```bash
+#!/bin/bash -l
+#SBATCH --job-name="my_gpu_job"
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=2:00:00
+#SBATCH -p short_gpu
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+set -euo pipefail
+
+# ── Auto GPU selection & self-submit ──────────────────────────────────
+# When run outside SLURM (./script.sh instead of sbatch script.sh),
+# auto-detect the best available GPU type and sbatch itself.
+
+if [ -z "${SLURM_JOB_ID:-}" ]; then
+    PARTITION="${PARTITION:-short_gpu}"
+
+    auto_select_gpu() {
+        local -a preferred=("h100" "a100" "ada6000" "p100")
+        local nodes
+        nodes=$(sinfo -N -p "$PARTITION" -o "%N %G %T" --noheader 2>/dev/null)
+        for gtype in "${preferred[@]}"; do
+            if echo "$nodes" | grep "gpu:${gtype}:" | grep -iq "idle\|mix"; then
+                echo "$gtype"
+                return 0
+            fi
+        done
+        return 1
+    }
+
+    GPU_TYPE=$(auto_select_gpu) || GPU_TYPE=""
+    if [ -n "$GPU_TYPE" ]; then
+        echo "Auto-selected GPU: $GPU_TYPE (partition: $PARTITION)"
+        exec sbatch -p "$PARTITION" --gres="gpu:${GPU_TYPE}:1" "$0" "$@"
+    else
+        echo "No specific GPU type available, submitting with default"
+        exec sbatch -p "$PARTITION" "$0" "$@"
+    fi
+fi
+```
+
+**How it works:**
+- `SLURM_JOB_ID` is only set when running inside a SLURM job — so the `if` block only runs when executed directly
+- `auto_select_gpu()` queries `sinfo` for the target partition and checks each GPU type in priority order (fastest first)
+- `exec sbatch ... "$0" "$@"` replaces the current shell with the sbatch submission, passing through any CLI arguments
+- Override the partition with `PARTITION=gpu ./script.sh`
+- Customize the `preferred` array to match your cluster's GPU types (run `sinfo` to discover them)
+
+### Diagnostics Banner
+
+Always print environment info at the start of your job for debugging failed runs:
+
+```bash
+echo "============================================"
+echo "  Job: $SLURM_JOB_NAME"
+echo "  Node:  $(hostname)"
+echo "  GPU:   $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'N/A')"
+echo "  CUDA:  $(nvcc --version 2>/dev/null | tail -1 || echo 'N/A')"
+echo "============================================"
+```
+
+### SSL Certificate Fix
+
+HPC nodes often have SSL issues when downloading from HuggingFace, PyPI, or GitHub. Add this after `module load`:
+
+```bash
+export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt
+```
+
+### Idempotent Setup Functions
+
+Wrap expensive setup (venv creation, package installs) in functions that skip if already done:
+
+```bash
+setup_venv() {
+    if [ -f "$VENV/bin/python" ] && "$VENV/bin/python" -c "import torch" 2>/dev/null; then
+        echo "[Setup] Venv OK"
+        return
+    fi
+    echo "[Setup] Creating venv..."
+    uv venv "$VENV" --python python3.11
+    uv pip install --python "$VENV/bin/python" torch torchvision
+}
+
+setup_venv
+```
+
+### Skip-If-Done Guards
+
+For multi-step pipelines, skip steps whose output already exists:
+
+```bash
+if [ -d "$OUTPUT_DIR" ] && [ "$(ls -1 "$OUTPUT_DIR"/*.png 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "[Skip] Output already exists at $OUTPUT_DIR"
+else
+    python process.py --output "$OUTPUT_DIR"
+fi
+```
+
+## Job Monitoring Utility
+
+For projects with multiple SLURM jobs, use a monitoring script to quickly check status, tail logs, and manage jobs. See the `templates/monitor.sh` template for a reusable utility that provides:
+
+- `./monitor.sh` — show all your jobs
+- `./monitor.sh watch` — live refresh every 5s
+- `./monitor.sh log JOBID` — tail stdout log
+- `./monitor.sh err JOBID` — tail stderr log
+- `./monitor.sh info JOBID` — full job details
+- `./monitor.sh eff JOBID` — resource efficiency (completed jobs)
+- `./monitor.sh gpus` — show all GPU nodes and availability
+- `./monitor.sh cancel JOBID` — cancel a specific job
+- `./monitor.sh cancel all` — cancel all your jobs
+
+Copy it into your project and adjust the log directory pattern if needed (default: `logs/*_JOBID.out`).
+
 ## Common Slurm Errors
 
 | Error | Cause | Fix |
