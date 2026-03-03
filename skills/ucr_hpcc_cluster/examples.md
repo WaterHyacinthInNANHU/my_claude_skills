@@ -384,12 +384,26 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
     PARTITION="${PARTITION:-short_gpu}"
     auto_select_gpu() {
         local -a preferred=("h100" "a100" "ada6000" "p100")
-        local nodes
-        nodes=$(sinfo -N -p "$PARTITION" -o "%N %G %T" --noheader 2>/dev/null)
+        # Compare Gres (total) vs GresUsed (allocated) per node.
+        # Don't rely on node state — "mix" only means some CPUs are free,
+        # all GPUs could still be fully allocated.
+        local info
+        info=$(sinfo -N -p "$PARTITION" \
+               -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
+               --noheader 2>/dev/null)
         for gtype in "${preferred[@]}"; do
-            if echo "$nodes" | grep "gpu:${gtype}:" | grep -iq "idle\|mix"; then
-                echo "$gtype"; return 0
-            fi
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                local state total used
+                state=$(echo "$line" | awk '{print $4}')
+                echo "$state" | grep -iq "down\|drain" && continue
+                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                [ "$total" -eq 0 ] 2>/dev/null && continue
+                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                if [ "$total" -gt "$used" ] 2>/dev/null; then
+                    echo "$gtype"; return 0
+                fi
+            done <<< "$info"
         done
         return 1
     }
@@ -403,6 +417,7 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
     fi
 fi
 
+module load gcc/12.2.0   # GCC 9+ required for CUDA extensions (default is 8.x)
 module load cuda/12.1
 export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
 export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-bundle.crt

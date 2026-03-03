@@ -541,13 +541,24 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
 
     auto_select_gpu() {
         local -a preferred=("h100" "a100" "ada6000" "p100")
-        local nodes
-        nodes=$(sinfo -N -p "$PARTITION" -o "%N %G %T" --noheader 2>/dev/null)
+        # Query per-node Gres vs GresUsed to find GPUs with free slots
+        local info
+        info=$(sinfo -N -p "$PARTITION" -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
+               --noheader 2>/dev/null)
         for gtype in "${preferred[@]}"; do
-            if echo "$nodes" | grep "gpu:${gtype}:" | grep -iq "idle\|mix"; then
-                echo "$gtype"
-                return 0
-            fi
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                local state total used
+                state=$(echo "$line" | awk '{print $4}')
+                echo "$state" | grep -iq "down\|drain" && continue
+                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                [ "$total" -eq 0 ] 2>/dev/null && continue
+                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                if [ "$total" -gt "$used" ] 2>/dev/null; then
+                    echo "$gtype"
+                    return 0
+                fi
+            done <<< "$info"
         done
         return 1
     }
@@ -565,7 +576,7 @@ fi
 
 **How it works:**
 - `SLURM_JOB_ID` is only set when running inside a SLURM job — so the `if` block only runs when executed directly
-- `auto_select_gpu()` queries `sinfo` for the target partition and checks each GPU type in priority order (fastest first)
+- `auto_select_gpu()` queries `sinfo` for Gres vs GresUsed per node and checks each GPU type in priority order (fastest first), only selecting types with actually free slots
 - `exec sbatch ... "$0" "$@"` replaces the current shell with the sbatch submission, passing through any CLI arguments
 - Override the partition with `PARTITION=gpu ./script.sh`
 - Customize the `preferred` array to match your cluster's GPU types (run `sinfo` to discover them)
@@ -603,8 +614,12 @@ setup_venv() {
         return
     fi
     echo "[Setup] Creating venv..."
-    uv venv "$VENV" --python python3.11
-    uv pip install --python "$VENV/bin/python" torch torchvision
+    # --seed includes pip and setuptools in the venv (without it, only uv pip works)
+    uv venv "$VENV" --python python3.11 --seed
+    # Use the venv's pip for installs that compile C extensions (uv pip
+    # strips pkg_resources, which breaks some build-time imports)
+    "$VENV/bin/pip" install --upgrade pip "setuptools<71" wheel
+    "$VENV/bin/pip" install torch torchvision
 }
 
 setup_venv
@@ -649,3 +664,88 @@ Copy it into your project and adjust the log directory pattern if needed (defaul
 | `MaxSubmitJobLimit` | Over 5000 queued/running jobs | Wait for jobs to complete |
 | `PartitionConfig` | Wrong account/partition pairing | Use `-A preempt` for preempt partitions |
 | `QOSMinGRES` | Missing resource request | Use `--mem=100g+` for highmem, `--gres` for gpu |
+
+## Troubleshooting: CUDA & Python Build Issues
+
+Common pitfalls when building CUDA extensions (tiny-cuda-nn, custom PyTorch ops, etc.) on HPCC.
+
+### GCC Too Old for CUDA Extensions
+
+**Symptom:** Compilation fails with `"You're trying to build PyTorch with a too old version of GCC. We need GCC 9 or later."`
+
+**Cause:** HPCC default GCC is 8.x (RHEL 8). PyTorch 2.3+ CUDA extension headers require GCC 9+.
+
+**Fix:** Load GCC 12 before any compilation:
+```bash
+module load gcc/12.2.0
+module load cuda/12.1
+```
+This must happen before activating the venv and before any `pip install` that compiles C++ extensions.
+
+### `pkg_resources` / `setuptools` Conflicts with CUDA Builds
+
+**Symptom:** Building packages with CUDA extensions fails with:
+```
+ModuleNotFoundError: No module named 'pkg_resources'
+```
+or:
+```
+ImportError: cannot import name 'packaging' from 'pkg_resources'
+```
+
+**Cause (layered):**
+1. **`uv pip` strips `pkg_resources`** — uv's bundled setuptools omits the `pkg_resources` module. Any package that imports it at build time fails.
+2. **PyTorch < 2.3 imports `pkg_resources.packaging`** — `torch.utils.cpp_extension` (used during CUDA extension compilation) uses `pkg_resources.packaging`, which was removed in setuptools >= 71.
+
+**Fix:** Use `uv` only for venv creation, then use the venv's own `pip` for installs:
+```bash
+UV="$HOME/.local/bin/uv"
+$UV venv "$VENV_DIR" --python python3.11 --seed   # --seed includes pip
+"$VENV_DIR/bin/pip" install --upgrade pip "setuptools<71" wheel ninja
+
+# Use PyTorch 2.3+ (doesn't use pkg_resources.packaging)
+"$VENV_DIR/bin/pip" install torch==2.3.1 torchvision==0.18.1 \
+    --index-url https://download.pytorch.org/whl/cu121
+```
+
+For packages like tiny-cuda-nn that need direct `setup.py` invocation:
+```bash
+cd tiny-cuda-nn/bindings/torch
+"$VENV_DIR/bin/python" setup.py install
+```
+
+### `python3.11` Not Found on Compute Nodes
+
+**Symptom:** `python3.11 -m venv` fails on compute nodes with `command not found`.
+
+**Cause:** python3.11 installed via `uv` at `~/.local/bin/` is in `$PATH` on the login node but not consistently on compute nodes.
+
+**Fix:** Use `uv venv` instead of `python3.11 -m venv`. uv has its own Python discovery and doesn't rely on `$PATH`:
+```bash
+$UV venv "$VENV_DIR" --python python3.11 --seed
+```
+
+### `uv venv` Creates Venv Without pip
+
+**Symptom:** After `uv venv`, running `pip install` fails with `No module named pip`.
+
+**Cause:** `uv venv` by default creates a minimal venv without pip or setuptools (unlike `python -m venv`). uv expects you to use `uv pip` instead.
+
+**Fix:** Add the `--seed` flag to include pip and setuptools:
+```bash
+$UV venv "$VENV_DIR" --python python3.11 --seed
+```
+
+### Auto GPU Selection Picks Fully Occupied GPUs
+
+**Symptom:** Job script selected a GPU type (e.g., H100) even though all GPUs of that type were in use. Job queues indefinitely.
+
+**Cause:** Checking node state (`idle`/`mix`) doesn't verify GPU availability. A node in `mix` state means *some* resources (e.g., CPU cores) are free, but all GPUs could still be allocated.
+
+**Fix:** Compare `Gres` (total GPUs) vs `GresUsed` (allocated GPUs) per node:
+```bash
+sinfo -N -p "$PARTITION" \
+    -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
+    --noheader 2>/dev/null
+```
+If `Gres:gpu:h100:4` and `GresUsed:gpu:h100:4`, all 4 H100s are taken — even if node state is `mix`. The auto GPU selection template uses this approach (see `templates/gpu_autoselect_job.sh`).

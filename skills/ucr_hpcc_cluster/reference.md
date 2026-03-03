@@ -304,3 +304,16 @@ Example:
 | `ReqNodeNotAvail` | Overlaps maintenance window | Reduce runtime or wait |
 | `PartitionConfig` | Wrong account/partition pairing | Use `-A preempt` for preempt partitions |
 | `QOSMinGRES` | Minimum resources not requested | `--mem=100g+` for highmem, `--gres` for gpu |
+
+---
+
+## CUDA / Python Build Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `GCC too old` during CUDA build | Default GCC 8.x, need 9+ | `module load gcc/12.2.0` before compilation |
+| `No module named 'pkg_resources'` | `uv pip` strips pkg_resources | Use venv's own pip: `"$VENV/bin/pip" install` |
+| `cannot import 'packaging' from 'pkg_resources'` | PyTorch <2.3 + setuptools >=71 | Upgrade to PyTorch 2.3+ and pin `"setuptools<71"` |
+| `python3.11: command not found` on compute node | `~/.local/bin` not in compute node PATH | Use `uv venv --python python3.11` instead of `python3.11 -m venv` |
+| `No module named pip` after `uv venv` | `uv venv` omits pip by default | Add `--seed` flag: `uv venv "$VENV" --seed` |
+| Auto GPU selects fully occupied GPUs | Node state `mix` ≠ free GPUs | Compare `Gres` vs `GresUsed` in `sinfo -O` output |

@@ -24,13 +24,27 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
     auto_select_gpu() {
         # Edit this list to match your cluster's GPUs, fastest first
         local -a preferred=("h100" "a100" "ada6000" "p100")
-        local nodes
-        nodes=$(sinfo -N -p "$PARTITION" -o "%N %G %T" --noheader 2>/dev/null)
+        # Query per-node Gres vs GresUsed to find GPUs with free slots
+        # (checking node state alone is unreliable — a "mix" node may have
+        #  free CPUs but all GPUs allocated)
+        local info
+        info=$(sinfo -N -p "$PARTITION" \
+               -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
+               --noheader 2>/dev/null)
         for gtype in "${preferred[@]}"; do
-            if echo "$nodes" | grep "gpu:${gtype}:" | grep -iq "idle\|mix"; then
-                echo "$gtype"
-                return 0
-            fi
+            while IFS= read -r line; do
+                [ -z "$line" ] && continue
+                local state total used
+                state=$(echo "$line" | awk '{print $4}')
+                echo "$state" | grep -iq "down\|drain" && continue
+                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                [ "$total" -eq 0 ] 2>/dev/null && continue
+                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
+                if [ "$total" -gt "$used" ] 2>/dev/null; then
+                    echo "$gtype"
+                    return 0
+                fi
+            done <<< "$info"
         done
         return 1
     }
@@ -47,6 +61,8 @@ if [ -z "${SLURM_JOB_ID:-}" ]; then
 fi
 
 # ── Environment ───────────────────────────────────────────────────────
+# GCC 12 is needed for CUDA extension compilation (default GCC 8.x is too old)
+module load gcc/12.2.0
 module load cuda/12.1
 
 # Fix SSL cert issues on HPC nodes (HuggingFace, pip, torch.hub)
