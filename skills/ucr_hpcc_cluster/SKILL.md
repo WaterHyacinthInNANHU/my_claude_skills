@@ -471,20 +471,59 @@ Note: Reinstall R packages when upgrading R versions — they aren't backward co
 
 ### Cache Management
 
-Many tools cache to home by default. Redirect them to bigdata in `~/.bashrc`:
+Many tools cache to `~/.cache` by default, which quickly fills the home quota. Common offenders and typical sizes:
+
+| Cache directory | What it stores | Typical size |
+|----------------|---------------|-------------|
+| `~/.cache/uv/` | uv package cache | 10–50 GB |
+| `~/.cache/pip/` | pip download cache | 5–20 GB |
+| `~/.cache/huggingface/` | HF model weights | 5–50+ GB |
+| `~/.cache/torch/` | PyTorch hub models | 1–5 GB |
+| `~/.cache/conda/` | conda package cache | 1–10 GB |
+| `~/.cache/nvidia/` | CUDA/cuDNN caches | < 1 GB |
+| `~/.cache/matplotlib/` | font cache | < 1 MB |
+| `~/.cache/wandb/` | W&B run cache | varies |
+| `~/.cache/singularity/` | container images | 1–20 GB |
+
+**Diagnose:** Check what's using space:
 ```bash
-# Conda (handled by .condarc, but pip within conda also caches)
-export PIP_CACHE_DIR=/bigdata/labname/username/.cache/pip
-
-# uv
-export UV_CACHE_DIR=/bigdata/labname/username/.cache/uv
-
-# Hugging Face models
-export HF_HOME=/bigdata/labname/username/.cache/huggingface
-
-# Singularity/Apptainer containers
-export SINGULARITY_CACHEDIR=/bigdata/labname/username/.cache/singularity
+check_quota home
+du -sh ~/.cache/*/  2>/dev/null | sort -rh | head -15
 ```
+
+**Clean:** Safe to delete — these are all regeneratable caches:
+```bash
+rm -rf ~/.cache/uv
+rm -rf ~/.cache/pip
+rm -rf ~/.cache/huggingface
+rm -rf ~/.cache/torch
+rm -rf ~/.cache/conda
+rm -rf ~/.cache/nvidia
+rm -rf ~/.cache/matplotlib
+rm -rf ~/.cache/wandb
+rm -rf ~/.cache/singularity
+rm -rf ~/.cache/YAPF
+```
+
+**Redirect (permanent fix):** Add to `~/.bashrc` so caches go to bigdata instead of home:
+```bash
+# ── Redirect caches to bigdata (home is only 20-50GB) ──
+export PIP_CACHE_DIR=/bigdata/labname/username/.cache/pip
+export UV_CACHE_DIR=/bigdata/labname/username/.cache/uv
+export HF_HOME=/bigdata/labname/username/.cache/huggingface
+export TORCH_HOME=/bigdata/labname/username/.cache/torch
+export CONDA_PKGS_DIRS=/bigdata/labname/username/.cache/conda/pkgs
+export SINGULARITY_CACHEDIR=/bigdata/labname/username/.cache/singularity
+export WANDB_DIR=/bigdata/labname/username/.cache/wandb
+export MPLCONFIGDIR=/bigdata/labname/username/.cache/matplotlib
+```
+
+Create the target directories:
+```bash
+mkdir -p /bigdata/labname/username/.cache/{pip,uv,huggingface,torch,conda/pkgs,singularity,wandb,matplotlib}
+```
+
+**Important:** After adding redirects to `~/.bashrc`, clean the old `~/.cache` directories to reclaim space. The redirects only affect future caching — existing cached files stay in home until manually removed.
 
 ### Data Storage Strategy
 

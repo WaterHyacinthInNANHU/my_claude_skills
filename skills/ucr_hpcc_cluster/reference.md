@@ -201,6 +201,39 @@ python -m ipykernel install --user --name myenv --display-name "My Env"
 - Home: `/rhome/.snapshots/daily_YYYYMMDD/USERNAME/`
 - Bigdata: `/bigdata/.snapshots/weekly_YYYYMMDD/LABNAME/`
 
+### Cache Cleanup & Redirect
+
+**Diagnose:** `du -sh ~/.cache/*/ 2>/dev/null | sort -rh | head -15`
+
+**Common cache directories safe to delete:**
+
+| Directory | Contents | Typical size |
+|-----------|----------|-------------|
+| `~/.cache/uv/` | uv package cache | 10–50 GB |
+| `~/.cache/pip/` | pip download cache | 5–20 GB |
+| `~/.cache/huggingface/` | HF model weights | 5–50+ GB |
+| `~/.cache/torch/` | PyTorch hub models | 1–5 GB |
+| `~/.cache/conda/` | conda package cache | 1–10 GB |
+| `~/.cache/singularity/` | container images | 1–20 GB |
+| `~/.cache/nvidia/` | CUDA caches | < 1 GB |
+| `~/.cache/matplotlib/` | font cache | < 1 MB |
+| `~/.cache/wandb/` | W&B run cache | varies |
+
+**Redirect environment variables (add to `~/.bashrc`):**
+
+| Variable | Redirect to |
+|----------|-------------|
+| `PIP_CACHE_DIR` | `/bigdata/labname/username/.cache/pip` |
+| `UV_CACHE_DIR` | `/bigdata/labname/username/.cache/uv` |
+| `HF_HOME` | `/bigdata/labname/username/.cache/huggingface` |
+| `TORCH_HOME` | `/bigdata/labname/username/.cache/torch` |
+| `CONDA_PKGS_DIRS` | `/bigdata/labname/username/.cache/conda/pkgs` |
+| `SINGULARITY_CACHEDIR` | `/bigdata/labname/username/.cache/singularity` |
+| `WANDB_DIR` | `/bigdata/labname/username/.cache/wandb` |
+| `MPLCONFIGDIR` | `/bigdata/labname/username/.cache/matplotlib` |
+
+After redirecting, delete old `~/.cache/*` directories to reclaim home space.
+
 ---
 
 ## Environment Variables
