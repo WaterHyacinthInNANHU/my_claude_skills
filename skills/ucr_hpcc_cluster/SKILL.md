@@ -775,6 +775,20 @@ $UV venv "$VENV_DIR" --python python3.11 --seed
 $UV venv "$VENV_DIR" --python python3.11 --seed
 ```
 
+### Vulkan on GPU Nodes
+
+Vulkan **is available** on HPCC GPU nodes. The NVIDIA ICD file is at:
+```
+/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
+```
+
+To use Vulkan in job scripts (e.g., for rendering with Kaolin, Blender, or other GPU-accelerated graphics):
+```bash
+export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
+```
+
+**Note:** The ICD file is at `/usr/share/vulkan/icd.d/`, **not** `/etc/vulkan/icd.d/` as some documentation suggests.
+
 ### Auto GPU Selection Picks Fully Occupied GPUs
 
 **Symptom:** Job script selected a GPU type (e.g., H100) even though all GPUs of that type were in use. Job queues indefinitely.

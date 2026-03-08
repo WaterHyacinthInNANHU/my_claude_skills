@@ -350,3 +350,4 @@ Example:
 | `python3.11: command not found` on compute node | `~/.local/bin` not in compute node PATH | Use `uv venv --python python3.11` instead of `python3.11 -m venv` |
 | `No module named pip` after `uv venv` | `uv venv` omits pip by default | Add `--seed` flag: `uv venv "$VENV" --seed` |
 | Auto GPU selects fully occupied GPUs | Node state `mix` ≠ free GPUs | Compare `Gres` vs `GresUsed` in `sinfo -O` output |
+| Vulkan not found / no ICD | Wrong ICD path | `export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json` (not `/etc/vulkan/icd.d/`) |
