@@ -692,13 +692,73 @@ For projects with multiple SLURM jobs, use a monitoring script to quickly check 
 
 Copy it into your project and adjust the log directory pattern if needed (default: `logs/*_JOBID.out`).
 
+## SLURM Resource Limits
+
+SLURM enforces **group-level caps** on simultaneous resource usage per partition. Even if the cluster has idle GPUs, your jobs will queue if your account hits these limits.
+
+### Checking Your Limits
+
+```bash
+sacctmgr show assoc where user=$USER format=User,Account,GrpTRES,MaxTRES -p
+```
+
+### Typical Limits (jlilab account, `short_gpu`)
+
+| Resource | Group Limit | Per-Job Max |
+|----------|-------------|-------------|
+| CPUs | 48 | 16 |
+| Memory | 512G | 256G |
+| GPUs | 4 | — |
+| Time | — | 2 hours |
+
+### Practical Impact
+
+- **4 GPU jobs max**: Group limit of 4 GPUs = max 4 single-GPU jobs
+- **CPU bottleneck**: 48 CPUs / 4 jobs = 12 CPUs each. Requesting 16 CPUs/job only allows 3 concurrent jobs
+- **Memory bottleneck**: 512G / 4 jobs = 128G each. Requesting 200G/job only allows 2 concurrent jobs
+
+### Recommended Settings for Concurrent GPU Jobs
+
+To maximize concurrent GPU jobs (up to 4):
+
+```bash
+--cpus-per-task=12 --mem=80G --gres=gpu:1
+```
+
+This gives: 4 × 12 = 48 CPUs, 4 × 80G = 320G memory — fits within all limits.
+
+### SLURM Pending Reasons
+
+| Reason | Meaning |
+|--------|---------|
+| `AssocGrpCpuLimit` | Your account's CPU quota is full |
+| `AssocGrpMemLimit` | Your account's memory quota is full |
+| `AssocGrpGRES` | Your account's GPU quota is full |
+| `Resources` | Not enough free resources on any node |
+| `Priority` | Other jobs have higher priority |
+| `Dependency` | Waiting for dependent job to finish |
+
+### Auto-Resubmit for Time-Limited Partitions
+
+For `short_gpu` (2-hour limit), use this pattern to auto-resubmit on timeout:
+
+```bash
+EXIT_CODE=0
+python train.py ... || EXIT_CODE=$?
+
+if [ $EXIT_CODE -eq 143 ]; then
+    # 143 = SIGTERM (128+15), sent by SLURM at time limit
+    sbatch ... "$0" "$@"
+fi
+```
+
 ## Common Slurm Errors
 
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `QOSMaxWallDurationPerJobLimit` | Exceeds partition time limit | Reduce `--time` |
-| `AssocGrpCpuLimit` | Per-user CPU limit hit | Wait for running jobs to finish |
-| `AssocGrpMemLimit` | Per-user memory limit hit | Wait for running jobs to finish |
+| `AssocGrpCpuLimit` | Per-user CPU limit hit | Reduce `--cpus-per-task` or wait |
+| `AssocGrpMemLimit` | Per-user memory limit hit | Reduce `--mem` or wait |
 | `AssocGrpGRES` | Per-user GPU limit hit | Wait for GPU jobs to finish |
 | `MaxSubmitJobLimit` | Over 5000 queued/running jobs | Wait for jobs to complete |
 | `PartitionConfig` | Wrong account/partition pairing | Use `-A preempt` for preempt partitions |
