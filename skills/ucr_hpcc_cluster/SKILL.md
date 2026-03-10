@@ -546,15 +546,15 @@ A well-structured sbatch script has these sections in order:
 
 1. **SBATCH directives** — resource requests
 2. **Safety flags** — `set -euo pipefail` (fail fast on errors)
-3. **Auto GPU selection & self-submit** (optional, for GPU jobs)
+3. **Self-submit with generic GPU request** (optional, for GPU jobs)
 4. **Path definitions** — all paths in one place at the top
 5. **Environment setup** — module loads, SSL fixes, venv setup
 6. **Diagnostics banner** — print node, GPU, CUDA info for debugging
 7. **Work steps** — with skip-if-done guards for idempotency
 
-### Auto GPU Selection & Self-Submit
+### Self-Submit with Generic GPU Request
 
-This pattern lets you run a GPU script directly (`./script.sh`) instead of manually typing `sbatch -p ... --gres=gpu:TYPE:1 script.sh`. When run outside SLURM, it auto-detects the best available GPU type and submits itself:
+This pattern lets you run a GPU script directly (`./script.sh`) instead of manually typing `sbatch -p ... --gres=gpu:1 script.sh`. When run outside SLURM, it submits itself with a generic GPU request:
 
 ```bash
 #!/bin/bash -l
@@ -571,54 +571,28 @@ This pattern lets you run a GPU script directly (`./script.sh`) instead of manua
 
 set -euo pipefail
 
-# ── Auto GPU selection & self-submit ──────────────────────────────────
-# When run outside SLURM (./script.sh instead of sbatch script.sh),
-# auto-detect the best available GPU type and sbatch itself.
-
+# ── Self-submit with generic GPU request ─────────────────────────────
+# When run outside SLURM, submit itself and let SLURM pick the best GPU.
 if [ -z "${SLURM_JOB_ID:-}" ]; then
     PARTITION="${PARTITION:-short_gpu}"
-
-    auto_select_gpu() {
-        local -a preferred=("h100" "a100" "ada6000" "p100")
-        # Query per-node Gres vs GresUsed to find GPUs with free slots
-        local info
-        info=$(sinfo -N -p "$PARTITION" -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
-               --noheader 2>/dev/null)
-        for gtype in "${preferred[@]}"; do
-            while IFS= read -r line; do
-                [ -z "$line" ] && continue
-                local state total used
-                state=$(echo "$line" | awk '{print $4}')
-                echo "$state" | grep -iq "down\|drain" && continue
-                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                [ "$total" -eq 0 ] 2>/dev/null && continue
-                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                if [ "$total" -gt "$used" ] 2>/dev/null; then
-                    echo "$gtype"
-                    return 0
-                fi
-            done <<< "$info"
-        done
-        return 1
-    }
-
-    GPU_TYPE=$(auto_select_gpu) || GPU_TYPE=""
-    if [ -n "$GPU_TYPE" ]; then
-        echo "Auto-selected GPU: $GPU_TYPE (partition: $PARTITION)"
-        exec sbatch -p "$PARTITION" --gres="gpu:${GPU_TYPE}:1" "$0" "$@"
-    else
-        echo "No specific GPU type available, submitting with default"
-        exec sbatch -p "$PARTITION" "$0" "$@"
-    fi
+    mkdir -p logs
+    echo "Submitting to $PARTITION with generic GPU request"
+    exec sbatch -p "$PARTITION" --gres=gpu:1 "$0" "$@"
 fi
 ```
 
 **How it works:**
 - `SLURM_JOB_ID` is only set when running inside a SLURM job — so the `if` block only runs when executed directly
-- `auto_select_gpu()` queries `sinfo` for Gres vs GresUsed per node and checks each GPU type in priority order (fastest first), only selecting types with actually free slots
+- Uses `--gres=gpu:1` (no specific type) — SLURM picks the best available node and GPU
 - `exec sbatch ... "$0" "$@"` replaces the current shell with the sbatch submission, passing through any CLI arguments
 - Override the partition with `PARTITION=gpu ./script.sh`
-- Customize the `preferred` array to match your cluster's GPU types (run `sinfo` to discover them)
+
+**Why NOT auto-select a specific GPU type:** Scripting GPU type selection (e.g., `--gres=gpu:a100:1`) at submission time is unreliable:
+1. **Stale availability** — A GPU free at submission may be taken by the time the job actually starts
+2. **Column truncation** — `sinfo` output columns can truncate long GPU type names, breaking grep-based parsing
+3. **All-or-nothing** — Requesting a specific type prevents SLURM from scheduling on other available types, causing jobs to queue indefinitely when that type fills up
+
+Use generic `--gres=gpu:1` and let SLURM's scheduler handle GPU assignment. Only use `--gres=gpu:TYPE:1` when you truly need a specific GPU (e.g., for VRAM requirements), and accept that the job may wait longer.
 
 ### Diagnostics Banner
 
@@ -849,16 +823,28 @@ export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json
 
 **Note:** The ICD file is at `/usr/share/vulkan/icd.d/`, **not** `/etc/vulkan/icd.d/` as some documentation suggests.
 
-### Auto GPU Selection Picks Fully Occupied GPUs
+### Auto GPU Selection Is Unreliable — Use Generic Requests
 
-**Symptom:** Job script selected a GPU type (e.g., H100) even though all GPUs of that type were in use. Job queues indefinitely.
+**Symptom:** Job script auto-selected a GPU type (e.g., `--gres=gpu:a100:1`) at submission, but by the time the job starts, those GPUs are taken. Job queues indefinitely with `ReqNodeNotAvail` or `Resources` pending reason, even though other GPU types are free.
 
-**Cause:** Checking node state (`idle`/`mix`) doesn't verify GPU availability. A node in `mix` state means *some* resources (e.g., CPU cores) are free, but all GPUs could still be allocated.
+**Cause:** Three compounding issues make scripted GPU auto-selection unreliable:
+1. **Stale availability** — GPU free at submission may be taken minutes/hours later when SLURM schedules the job
+2. **Column truncation** — `sinfo` output columns truncate long GPU type names (e.g., `ada6000` → `ada600`), breaking grep-based parsing
+3. **All-or-nothing** — Requesting `gpu:a100:1` prevents SLURM from scheduling on other types (e.g., ada6000) that have free slots
 
-**Fix:** Compare `Gres` (total GPUs) vs `GresUsed` (allocated GPUs) per node:
+**Fix:** Use generic `--gres=gpu:1` instead of specifying a GPU type. SLURM's scheduler will pick the best available node:
+```bash
+# Bad — locks you into one GPU type
+sbatch --gres=gpu:a100:1 script.sh
+
+# Good — SLURM picks the best available
+sbatch --gres=gpu:1 script.sh
+```
+
+To check GPU availability for informational purposes:
 ```bash
 sinfo -N -p "$PARTITION" \
     -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
     --noheader 2>/dev/null
 ```
-If `Gres:gpu:h100:4` and `GresUsed:gpu:h100:4`, all 4 H100s are taken — even if node state is `mix`. The auto GPU selection template uses this approach (see `templates/gpu_autoselect_job.sh`).
+Compare `Gres` (total) vs `GresUsed` (allocated). If `gpu:h100:4` and `gpu:h100:4(IDX:0-3)`, all H100s are taken even if node state is `mix`.

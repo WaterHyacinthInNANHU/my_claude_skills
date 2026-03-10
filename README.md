@@ -1,62 +1,77 @@
-# my_claude_skill
+# my_claude_skills
 
 Custom Claude Code skills for common workflows.
 
-## Installation
+## Repo Structure
 
-### Linux / macOS
+```
+skills/
+├── create_skill/                    # Core skills (always installed)
+├── create_skill_with_paper/
+├── python_project_layout/
+├── ucr_hpcc_cluster/
+├── rlinf/
+└── papers/                          # Skill group (install on-demand)
+    ├── paper_3d__dp3/
+    └── paper_3d__utonia/
+```
+
+## Installation
 
 ```bash
 git clone https://github.com/WaterHyacinthInNANHU/my_claude_skills.git
-cp -r my_claude_skills/skills/* ~/.claude/skills/
-```
+cd my_claude_skills
 
-### Windows (PowerShell)
-
-```powershell
-git clone https://github.com/WaterHyacinthInNANHU/my_claude_skills.git
-Copy-Item -Recurse -Force my_claude_skills\skills\* $env:USERPROFILE\.claude\skills\
-```
-
-### Windows (Command Prompt)
-
-```cmd
-git clone https://github.com/WaterHyacinthInNANHU/my_claude_skills.git
-xcopy /E /I /Y my_claude_skills\skills %USERPROFILE%\.claude\skills
+./install.sh                                          # Core skills only
+./install.sh --papers --all                           # Core + all paper skills
+./install.sh --papers paper_3d__dp3 paper_3d__utonia  # Core + specific papers
 ```
 
 ## Update
 
-### Linux / macOS
-
 ```bash
 cd my_claude_skills
 git pull
-cp -r skills/* ~/.claude/skills/
+./install.sh --update       # Updates core + already-installed group skills
 ```
 
-### Windows (PowerShell)
+## Uninstall
 
-```powershell
-cd my_claude_skills
-git pull
-Copy-Item -Recurse -Force skills\* $env:USERPROFILE\.claude\skills\
+```bash
+./install.sh --uninstall                      # Remove all skills from this repo
+./install.sh --uninstall --papers             # Remove all paper skills
+./install.sh --uninstall paper_3d__dp3        # Remove a specific skill
 ```
 
-### Windows (Command Prompt)
+## Info
 
-```cmd
-cd my_claude_skills
-git pull
-xcopy /E /I /Y skills %USERPROFILE%\.claude\skills
+```bash
+./install.sh --list                           # List all available skills
+./install.sh --list papers                    # List skills in a group
+./install.sh --help                           # Full usage info
 ```
 
 ## Available Skills
 
+### Core Skills
+
 | Skill | Description |
 |-------|-------------|
-| `ucr_hpcc_cluster` | UCR HPCC cluster commands - Slurm jobs, modules, storage |
 | `create_skill` | Guide for creating well-structured Claude Code skills |
+| `create_skill_with_paper` | Turn academic papers into reusable skills |
+| `python_project_layout` | Modern Python project structure (src layout + pyproject.toml) |
+| `ucr_hpcc_cluster` | UCR HPCC cluster commands — Slurm jobs, modules, storage |
+| `rlinf` | RLinf RL training framework troubleshooting on HPCC |
+
+### Paper Skills (on-demand)
+
+| Skill | Description |
+|-------|-------------|
+| `paper_3d__dp3` | 3D Diffusion Policy — imitation learning with point clouds |
+| `paper_3d__utonia` | Cross-domain pre-trained Point Transformer V3 encoder |
+
+> Paper skills use the naming convention `paper_<domain>__<method>`.
+> See `create_skill_with_paper` for domain prefixes and how to add new papers.
 
 ## Usage
 

@@ -13,51 +13,27 @@
 
 set -euo pipefail
 
-# ── Auto GPU selection & self-submit ──────────────────────────────────
+# ── Self-submit with generic GPU request ─────────────────────────────
 # When run outside SLURM (./script.sh instead of sbatch script.sh),
-# auto-detect the best available GPU type and sbatch itself.
+# submit itself with a generic GPU request and let SLURM schedule.
 # Override partition: PARTITION=gpu ./script.sh
+#
+# NOTE: We deliberately use --gres=gpu:1 (no specific type) rather than
+# auto-selecting a GPU type. Auto-selection is unreliable because:
+#   1. Stale availability — GPU free at submission time may be taken by
+#      the time the job starts (minutes to hours later)
+#   2. Column truncation — sinfo output columns can truncate long GPU
+#      type names, breaking grep-based parsing
+#   3. All-or-nothing — requesting a specific GPU type (e.g., gpu:a100:1)
+#      prevents SLURM from scheduling on other available types, causing
+#      jobs to queue indefinitely when that type fills up
+# Using generic --gres=gpu:1 lets SLURM pick the best available node.
 
 if [ -z "${SLURM_JOB_ID:-}" ]; then
     PARTITION="${PARTITION:-short_gpu}"
-
-    auto_select_gpu() {
-        # Edit this list to match your cluster's GPUs, fastest first
-        local -a preferred=("h100" "a100" "ada6000" "p100")
-        # Query per-node Gres vs GresUsed to find GPUs with free slots
-        # (checking node state alone is unreliable — a "mix" node may have
-        #  free CPUs but all GPUs allocated)
-        local info
-        info=$(sinfo -N -p "$PARTITION" \
-               -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
-               --noheader 2>/dev/null)
-        for gtype in "${preferred[@]}"; do
-            while IFS= read -r line; do
-                [ -z "$line" ] && continue
-                local state total used
-                state=$(echo "$line" | awk '{print $4}')
-                echo "$state" | grep -iq "down\|drain" && continue
-                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                [ "$total" -eq 0 ] 2>/dev/null && continue
-                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                if [ "$total" -gt "$used" ] 2>/dev/null; then
-                    echo "$gtype"
-                    return 0
-                fi
-            done <<< "$info"
-        done
-        return 1
-    }
-
     mkdir -p logs
-    GPU_TYPE=$(auto_select_gpu) || GPU_TYPE=""
-    if [ -n "$GPU_TYPE" ]; then
-        echo "Auto-selected GPU: $GPU_TYPE (partition: $PARTITION)"
-        exec sbatch -p "$PARTITION" --gres="gpu:${GPU_TYPE}:1" "$0" "$@"
-    else
-        echo "No specific GPU type available, submitting with default"
-        exec sbatch -p "$PARTITION" "$0" "$@"
-    fi
+    echo "Submitting to $PARTITION with generic GPU request (SLURM picks best available)"
+    exec sbatch -p "$PARTITION" --gres=gpu:1 "$0" "$@"
 fi
 
 # ── Environment ───────────────────────────────────────────────────────

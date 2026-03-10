@@ -379,42 +379,14 @@ BiocManager::install("DESeq2")
 
 set -euo pipefail
 
-# Auto GPU selection: when run as ./train.sh, detects best GPU and sbatch's itself
+# Self-submit: when run as ./train.sh, submits itself with generic GPU request.
+# Uses --gres=gpu:1 (no specific type) — auto-selecting a GPU type is unreliable
+# because availability changes between submission and job start time.
 if [ -z "${SLURM_JOB_ID:-}" ]; then
     PARTITION="${PARTITION:-short_gpu}"
-    auto_select_gpu() {
-        local -a preferred=("h100" "a100" "ada6000" "p100")
-        # Compare Gres (total) vs GresUsed (allocated) per node.
-        # Don't rely on node state — "mix" only means some CPUs are free,
-        # all GPUs could still be fully allocated.
-        local info
-        info=$(sinfo -N -p "$PARTITION" \
-               -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" \
-               --noheader 2>/dev/null)
-        for gtype in "${preferred[@]}"; do
-            while IFS= read -r line; do
-                [ -z "$line" ] && continue
-                local state total used
-                state=$(echo "$line" | awk '{print $4}')
-                echo "$state" | grep -iq "down\|drain" && continue
-                total=$(echo "$line" | awk '{print $2}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                [ "$total" -eq 0 ] 2>/dev/null && continue
-                used=$(echo "$line" | awk '{print $3}' | grep -oP "gpu:${gtype}:\K[0-9]+" || echo 0)
-                if [ "$total" -gt "$used" ] 2>/dev/null; then
-                    echo "$gtype"; return 0
-                fi
-            done <<< "$info"
-        done
-        return 1
-    }
     mkdir -p logs
-    GPU_TYPE=$(auto_select_gpu) || GPU_TYPE=""
-    if [ -n "$GPU_TYPE" ]; then
-        echo "Auto-selected GPU: $GPU_TYPE (partition: $PARTITION)"
-        exec sbatch -p "$PARTITION" --gres="gpu:${GPU_TYPE}:1" "$0" "$@"
-    else
-        exec sbatch -p "$PARTITION" "$0" "$@"
-    fi
+    echo "Submitting to $PARTITION with generic GPU request"
+    exec sbatch -p "$PARTITION" --gres=gpu:1 "$0" "$@"
 fi
 
 module load gcc/12.2.0   # GCC 9+ required for CUDA extensions (default is 8.x)
@@ -431,13 +403,13 @@ python train.py --epochs 100
 ### Run It
 
 ```bash
-# Direct run — auto-selects GPU and submits via sbatch
+# Direct run — submits via sbatch with generic GPU request
 ./train.sh
 
 # Override partition for longer jobs
 PARTITION=gpu ./train.sh
 
-# Still works with manual sbatch (auto-submit is skipped inside SLURM)
+# Manual sbatch with specific GPU (self-submit is skipped inside SLURM)
 sbatch -p gpu --gres=gpu:a100:1 train.sh
 ```
 
