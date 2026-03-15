@@ -51,7 +51,7 @@ install_core() {
             continue
         fi
         [ -f "$d/SKILL.md" ] || continue
-        cp -r "$d" "$SKILL_DIR/"
+        ln -sfn "$d" "$SKILL_DIR/$name"
         echo "  ✓ $name"
         ((count++))
     done
@@ -61,7 +61,7 @@ install_core() {
 install_group_skill() {
     local group="$1" name="$2"
     if [ -d "$SKILLS_ROOT/$group/$name" ]; then
-        cp -r "$SKILLS_ROOT/$group/$name" "$SKILL_DIR/"
+        ln -sfn "$SKILLS_ROOT/$group/$name" "$SKILL_DIR/$name"
         echo "  ✓ $name"
     else
         echo "  ✗ $name (not found in skills/$group/)"
@@ -77,7 +77,7 @@ install_all_in_group() {
     for d in "$group_dir"/*/; do
         [ -d "$d" ] || continue
         name=$(basename "$d")
-        cp -r "$d" "$SKILL_DIR/"
+        ln -sfn "$d" "$SKILL_DIR/$name"
         echo "  ✓ $name"
         ((count++))
     done
@@ -127,8 +127,8 @@ update_groups() {
         for d in "$group_dir"/*/; do
             [ -d "$d" ] || continue
             name=$(basename "$d")
-            if [ -d "$SKILL_DIR/$name" ]; then
-                cp -r "$d" "$SKILL_DIR/"
+            if [ -L "$SKILL_DIR/$name" ] || [ -d "$SKILL_DIR/$name" ]; then
+                ln -sfn "$d" "$SKILL_DIR/$name"
                 echo "  ✓ $name (updated)"
                 found=true
             fi
@@ -161,7 +161,7 @@ get_group_names() {
 
 uninstall_skill() {
     local name="$1"
-    if [ -d "$SKILL_DIR/$name" ]; then
+    if [ -L "$SKILL_DIR/$name" ] || [ -d "$SKILL_DIR/$name" ]; then
         rm -rf "$SKILL_DIR/$name"
         echo "  ✓ $name (removed)"
     else
