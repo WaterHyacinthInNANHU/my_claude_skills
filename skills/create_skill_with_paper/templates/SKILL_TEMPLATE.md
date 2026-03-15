@@ -25,6 +25,15 @@ description: <One-line summary of the paper's contribution>
 
 Key insight: <the core novel idea in one sentence>
 
+## Paper-Code Mapping
+
+| Paper Concept | Code Location | Notes |
+|---------------|---------------|-------|
+| <Model name (Sec X)> | `path/file.py:ClassName` | <brief note> |
+| <Loss function (Eq Y)> | `path/file.py:function_name` | <brief note> |
+| <Data augmentation (Sec Z)> | `path/file.py:ClassName` | <brief note> |
+| <Key hyperparameter (Table W)> | `path/config.yaml` or `path/file.py:L42` | default=<value> |
+
 ## Setup
 
 ### Dependencies
@@ -74,6 +83,53 @@ python <command> --flag value
 |------|---------|-------------|
 | `--flag1` | value | what it does |
 | `--flag2` | value | what it does |
+
+## Code Integration Guide
+
+How to use this paper's code in your own project (not just run the repo's scripts).
+
+### Minimal Imports
+
+```python
+import sys
+sys.path.append("/path/to/<repo_name>")
+
+from <module> import <ClassName>
+# or: from <package>.<module> import <ClassName>
+```
+
+### Model Instantiation & Inference
+
+```python
+# Construct the model with key arguments (use actual constructor signature)
+model = ClassName(
+    arg1=value1,   # <what this controls>
+    arg2=value2,   # <what this controls>
+)
+
+# Load pre-trained weights
+model.load_state_dict(torch.load("checkpoint.pth")["model"])
+model.eval()
+
+# Run inference — document exact input format
+# Input: <describe shape, dtype, normalization, coordinate convention, etc.>
+# Output: <describe shape, dtype, value range, etc.>
+output = model(input_tensor)
+```
+
+### Data Format
+
+| Field | Shape / Type | Description |
+|-------|-------------|-------------|
+| <input_name> | `(B, C, H, W)` float32 | <normalization, range, etc.> |
+| <output_name> | `(B, N, D)` float32 | <what it represents> |
+
+### Integration Notes
+
+- <Any path/import quirks (e.g., relative imports that require sys.path hacks)>
+- <Whether the model can be used standalone or needs the repo's config system>
+- <Thread safety, GPU requirements, or other runtime constraints>
+- <If the code is entangled with training scripts, document the minimum extraction needed>
 
 ## Core Architecture
 

@@ -5,7 +5,7 @@ description: Turn an academic paper into a reusable Claude Code skill for quick 
 
 # create_skill_with_paper
 
-Turn an academic paper (+ optional code repo) into a reusable skill so you can quickly adopt the method in any project.
+Turn an academic paper + its code repo into a reusable skill so you can quickly adopt and integrate the method in any project, staying faithful to the original implementation.
 
 ## When to Use
 
@@ -22,8 +22,10 @@ Ask the user for:
 | Input | Required | Example |
 |-------|----------|---------|
 | Paper | Yes | arXiv link, PDF path, or title |
-| Code repo | Optional | GitHub URL (search if not provided) |
+| Code repo | Yes (search if not provided) | GitHub URL |
 | Skill name | Optional | Default: `snake_case` of short paper name |
+
+A code repo is **required**. If the user doesn't provide one, you must search for it (check the paper, Papers With Code, GitHub). If no official repo exists, tell the user and ask how to proceed.
 
 ### Step 2: Read the Paper
 
@@ -39,11 +41,18 @@ Extract these key elements:
 4. **Key components** — named modules, losses, architectures worth remembering
 5. **Evaluation highlights** — main benchmarks, key results, comparisons
 
-### Step 3: Find & Examine the Code
+### Step 3: Clone & Deep-Read the Code
 
-- If repo URL provided: use it
-- Otherwise: check the paper for a GitHub link, or search `github.com <paper-title>`
-- Clone/browse the repo to extract:
+**You MUST clone the repo and read the actual source code.** Do not just skim the README.
+
+```bash
+# Clone into a temp location
+git clone <repo_url> /tmp/paper_skill_<method_name>
+```
+
+#### 3a: Understand project structure
+
+Map out the repo — entry points, core modules, config system, data pipeline:
 
 | What to Extract | Where to Look |
 |----------------|---------------|
@@ -54,7 +63,42 @@ Extract these key elements:
 | Data pipeline | `datasets/`, `data/`, dataloader setup |
 | Pre-trained weights | README download links, model zoo |
 
-**Don't** copy entire files — summarize the structure and key APIs.
+#### 3b: Read core implementation files
+
+Read the actual source files for the method's core components. For each key module:
+
+- Read the file completely (don't just skim)
+- Record the **exact class names, function signatures, and constructor arguments**
+- Trace the forward pass / main algorithm flow through the code
+- Note which classes/functions a user would need to import and call
+- Identify default hyperparameters and their values in code (not just CLI flags)
+
+#### 3c: Cross-reference paper ↔ code
+
+Build an explicit mapping between paper concepts and code locations:
+
+- Which class implements the model described in Section X?
+- Which function implements the loss from Equation Y?
+- Where are the key hyperparameters (from Table Z) set in code?
+- How does the data preprocessing match what the paper describes?
+
+This mapping becomes the **Paper-Code Mapping** section in the skill.
+
+#### 3d: Identify integration patterns
+
+Figure out how someone would **use this code in their own project** (not just run the repo's scripts):
+
+- What are the minimal imports needed?
+- How do you instantiate the model, load weights, and run inference?
+- What data format does the model expect (tensor shapes, dtypes, normalization)?
+- Are there clean API boundaries, or is everything entangled with the training script?
+- If the code is entangled, document the minimum extraction needed
+
+#### 3e: Clean up
+
+```bash
+rm -rf /tmp/paper_skill_<method_name>
+```
 
 ### Step 4: Name & Organize the Skill
 
@@ -114,16 +158,21 @@ Use the templates below for each file.
 | Core method description (1-2 paragraphs) | Full mathematical derivations |
 | Architecture diagram (ASCII or description) | Every ablation result |
 | Installation commands | Prose explanations of background |
-| Key CLI commands & config flags | Exhaustive API docs |
-| Dependency list with versions | Code that can be read from the repo |
-| Common usage scenarios | Minor implementation details |
-| Known gotchas / tips | Related work survey |
-| Links to paper, repo, weights | Full training logs |
+| Key CLI commands & config flags | Exhaustive API docs (list what matters) |
+| Dependency list with versions | Related work survey |
+| Common usage scenarios | Full training logs |
+| Known gotchas / tips | |
+| Links to paper, repo, weights | |
+| **Paper-Code Mapping** (paper concept → file:class) | |
+| **Exact class names, imports, function signatures** | |
+| **Code Integration Guide** (how to use in your project) | |
+| **Input/output tensor shapes & data formats** | |
 
 ## Key Principles
 
-1. **Skim-friendly** — tables and code blocks over prose
-2. **Reproducible** — enough info to set up and run from scratch
-3. **Linkable** — always include paper URL, repo URL, weight URLs
-4. **Minimal** — you can always `git clone` for details; the skill is a cheat sheet
-5. **Scenario-driven** — organize around "I want to do X" not "Section 3.2 says..."
+1. **Code-faithful** — use the original code's class names, function signatures, and patterns; never invent wrapper APIs that don't exist in the repo
+2. **Skim-friendly** — tables and code blocks over prose
+3. **Reproducible** — enough info to set up and run from scratch
+4. **Linkable** — always include paper URL, repo URL, weight URLs
+5. **Integration-ready** — a reader should be able to import and use the paper's code in their own project by following the skill
+6. **Scenario-driven** — organize around "I want to do X" not "Section 3.2 says..."

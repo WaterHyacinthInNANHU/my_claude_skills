@@ -8,10 +8,13 @@
 
 1. Fetch the arXiv abstract page to get title, authors, summary
 2. Read the PDF for method details, architecture, key results
-3. Browse the GitHub repo for dependencies, entry points, configs
-4. Determine domain → 3D vision → prefix `paper_3d__`
-5. Method is called "CoolMethod" → skill name: `paper_3d__cool_method`
-6. Create the skill:
+3. **Clone the repo** to `/tmp/paper_skill_cool_method`
+4. **Read core source files** — find model classes, loss functions, data loaders
+5. **Cross-reference paper ↔ code** — map paper sections to specific files/classes
+6. **Trace integration patterns** — how to import and use the model in external code
+7. Determine domain → 3D vision → prefix `paper_3d__`
+8. Method is called "CoolMethod" → skill name: `paper_3d__cool_method`
+9. Create the skill, then clean up `/tmp/paper_skill_cool_method`
 
 ```
 skills/papers/paper_3d__cool_method/
@@ -29,9 +32,11 @@ skills/papers/paper_3d__cool_method/
 
 1. Web-search for the paper → find arXiv link
 2. Search for official code repo (check paper, Papers With Code, GitHub)
-3. Read paper + repo
-4. Domain: generative models → `paper_gen__ddpm`
-5. Create the skill at `skills/papers/paper_gen__ddpm/`
+3. Read the paper PDF
+4. **Clone the repo**, read the core implementation files
+5. **Map paper concepts → code**: e.g. "forward diffusion (Eq 2) → `diffusion.py:GaussianDiffusion.q_sample()`"
+6. Domain: generative models → `paper_gen__ddpm`
+7. Create the skill at `skills/papers/paper_gen__ddpm/`
 
 ## Example 3: User provides a PDF file
 
@@ -40,9 +45,10 @@ skills/papers/paper_3d__cool_method/
 **What you do**:
 
 1. Read the PDF directly
-2. Extract title, search for code repo
-3. Determine domain + short name → e.g. `paper_seg__sam`
-4. Create the skill
+2. Extract title, **search for code repo** (required — ask user if not found)
+3. **Clone and deep-read the code**
+4. Determine domain + short name → e.g. `paper_seg__sam`
+5. Create the skill with Paper-Code Mapping and Code Integration Guide
 
 ## How Grouping Looks at Scale
 
@@ -108,6 +114,18 @@ Fast 3D reconstruction from sparse views (3-5 images) using a feed-forward trans
 
 Key insight: replaces per-scene optimization with a single forward pass.
 
+## Paper-Code Mapping
+
+| Paper Concept | Code Location | Notes |
+|---------------|---------------|-------|
+| Image encoder (Sec 3.1) | `models/encoder.py:ImageEncoder` | Wraps DINOv2 ViT-B/14, outputs `(B, N, 768)` tokens |
+| Cross-view attention (Sec 3.2) | `models/transformer.py:CrossViewTransformer` | 6-layer transformer, `n_heads=12`, `dim=768` |
+| Triplane projection (Sec 3.3) | `models/transformer.py:TriplaneProjection` | Projects tokens → 3 feature planes `(B, C, H, W)` |
+| NeRF decoder (Sec 3.4) | `models/nerf.py:NeRFMLP` | 4-layer MLP, `hidden_dim=256`, outputs RGB+σ |
+| Volume rendering (Eq 5) | `models/nerf.py:volume_render()` | Uses nerfacc for ray marching |
+| Photometric loss (Eq 7) | `losses/reconstruction.py:PhotometricLoss` | L1 + LPIPS (weight=0.1) |
+| Training schedule (Sec 4.1) | `configs/default.yaml` | lr=1e-4, cosine decay, 100k steps |
+
 ## Setup
 
 ### Dependencies
@@ -147,32 +165,85 @@ Key insight: replaces per-scene optimization with a single forward pass.
 | `--backbone` | dinov2_vitb14 | Image encoder |
 | `--lr` | 1e-4 | Learning rate |
 
+## Code Integration Guide
+
+How to use ExampleMethod's model in your own project.
+
+### Minimal Imports
+
+    import sys
+    sys.path.append("/path/to/example-method")
+
+    from models.encoder import ImageEncoder
+    from models.transformer import CrossViewTransformer
+    from models.nerf import NeRFMLP, volume_render
+
+### Model Instantiation & Inference
+
+    import torch
+
+    # Build components (matches constructor signatures in the repo)
+    encoder = ImageEncoder(backbone="dinov2_vitb14", freeze_backbone=True)
+    transformer = CrossViewTransformer(dim=768, n_heads=12, n_layers=6)
+    decoder = NeRFMLP(in_dim=768, hidden_dim=256, out_dim=4)
+
+    # Or use the unified wrapper
+    from models import ExampleModel
+    model = ExampleModel.from_config("configs/default.yaml")
+
+    # Load pre-trained weights
+    ckpt = torch.load("checkpoint.pth", map_location="cpu")
+    model.load_state_dict(ckpt["model"])
+    model.cuda().eval()
+
+    # Input: (B, N, 3, 224, 224) float32, ImageNet-normalized
+    # cameras: dict with 'intrinsics' (B, N, 3, 3), 'extrinsics' (B, N, 4, 4)
+    # Output: (B, 3, H, W) float32, range [0, 1]
+    novel_view = model(images, cameras, target_camera)
+
+### Data Format
+
+| Field | Shape / Type | Description |
+|-------|-------------|-------------|
+| `images` | `(B, N, 3, 224, 224)` float32 | ImageNet-normalized (mean=[0.485,0.456,0.406]) |
+| `cameras.intrinsics` | `(B, N, 3, 3)` float32 | Camera intrinsic matrices |
+| `cameras.extrinsics` | `(B, N, 4, 4)` float32 | Camera-to-world transforms |
+| output | `(B, 3, H, W)` float32 | Rendered RGB, range [0, 1] |
+
+### Integration Notes
+
+- The repo uses relative imports within `models/` — add the repo root to `sys.path`
+- `ImageEncoder` downloads DINOv2 weights on first use (requires internet)
+- Inference requires ~8GB VRAM for 4 input views at 256×256
+
 ## Core Architecture
 
     Input Images (N views)
         │
         ▼
-    DINOv2 Encoder (frozen or fine-tuned)
+    ImageEncoder (DINOv2 ViT-B/14, frozen)
+        │  Output: (B, N, 257, 768) patch tokens
+        ▼
+    CrossViewTransformer (6 layers, 12 heads)
+        │  Output: (B, N, 257, 768) cross-attended tokens
+        ▼
+    TriplaneProjection
+        │  Output: 3 × (B, 256, 64, 64) feature planes
+        ▼
+    NeRFMLP (4 layers, hidden=256) → RGB(3) + σ(1)
         │
         ▼
-    Cross-View Transformer (6 layers)
-        │
-        ▼
-    Triplane Feature Volume
-        │
-        ▼
-    NeRF MLP Decoder → RGB + Density
-        │
-        ▼
-    Volume Rendering → Novel View
+    volume_render() (nerfacc) → (B, 3, H, W) Novel View
 
 ## Repo Structure
 
 | Path | Purpose |
 |------|---------|
-| `models/encoder.py` | Vision transformer encoder |
-| `models/transformer.py` | Cross-view attention |
-| `models/nerf.py` | NeRF decoder + rendering |
+| `models/encoder.py` | `ImageEncoder` — DINOv2 wrapper |
+| `models/transformer.py` | `CrossViewTransformer`, `TriplaneProjection` |
+| `models/nerf.py` | `NeRFMLP`, `volume_render()` |
+| `models/__init__.py` | `ExampleModel` — unified wrapper |
+| `losses/reconstruction.py` | `PhotometricLoss` (L1 + LPIPS) |
 | `datasets/` | Data loading & augmentation |
 | `configs/` | Hydra config files |
 | `train.py` | Training entry point |
@@ -184,4 +255,5 @@ Key insight: replaces per-scene optimization with a single forward pass.
 - Use `--backbone dinov2_vits14` for lower memory
 - Input images should have known camera poses (use COLMAP if needed)
 - Batch size > 4 may cause OOM on single GPU — use DDP
+- To extract just the model for your project, copy the `models/` dir and `pip install einops timm nerfacc`
 ```
