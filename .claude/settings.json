@@ -1,5 +1,18 @@
 {
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(ln -sfn /bigdata/jlilab/myan035/workspace/my_claude_skills/skills/papers/paper_rob__openpi /rhome/myan035/.claude/skills/paper_rob__openpi)",
+      "WebFetch(domain:colinqiyangli.github.io)",
+      "Bash(ln -sfn /bigdata/jlilab/myan035/workspace/my_claude_skills/skills/papers/paper_rl__qc /rhome/myan035/.claude/skills/paper_rl__qc)"
+    ],
+    "additionalDirectories": [
+      "/bigdata/jlilab/myan035/workspace/my_claude_skills/skills/papers"
+    ]
+  },
   "skills": {
-    "paths": ["skills"]
+    "paths": [
+      "skills"
+    ]
   }
 }
