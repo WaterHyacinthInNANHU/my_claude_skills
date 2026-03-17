@@ -100,6 +100,11 @@ touch doc/agent/sketch.md doc/agent/architecture.md doc/agent/findings.md
 cp <skill_path>/templates/hooks/restore-context.sh .claude/hooks/
 chmod +x .claude/hooks/restore-context.sh
 
+# Install utility scripts
+mkdir -p scripts
+cp <skill_path>/templates/scripts/*.sh scripts/
+chmod +x scripts/*.sh
+
 # Configure hook in .claude/settings.json
 cat > .claude/settings.json << 'EOF'
 {
@@ -441,6 +446,83 @@ tail -5 results.tsv
 | **Wait for completion** | Results analysis needs final outputs |
 | **Update sketch.md every session** | Context preservation for multi-session work |
 
+## Workspace Cleanup
+
+### Cleanup Workflow
+
+```
+1. ARCHIVE successful experiments
+   └── ./scripts/archive-experiment.sh <exp_id>
+
+2. PRUNE by retention policy
+   └── ./scripts/cleanup.sh --dry-run  (preview)
+   └── ./scripts/cleanup.sh            (execute)
+
+3. VERIFY before delete
+   └── Script shows sizes and asks confirmation
+```
+
+### Install Scripts
+
+```bash
+cp <skill_path>/templates/scripts/*.sh <workspace>/scripts/
+chmod +x <workspace>/scripts/*.sh
+```
+
+### Archive an Experiment
+
+```bash
+# Archive with best checkpoint only
+./scripts/archive-experiment.sh exp_001
+
+# Archive with all checkpoints
+./scripts/archive-experiment.sh exp_001 --include-all-checkpoints
+```
+
+Creates `archives/exp_001_20260317.tar.gz` containing:
+- Best/final checkpoint
+- Training log
+- Experiment report
+- Git commit info and notes
+- Config file
+- Results excerpt
+
+### Cleanup Workspace
+
+```bash
+# Preview what would be deleted
+./scripts/cleanup.sh --dry-run
+
+# Run cleanup with prompts
+./scripts/cleanup.sh
+
+# Force cleanup (no prompts)
+./scripts/cleanup.sh --force
+
+# Custom retention
+./scripts/cleanup.sh --keep-checkpoints 5 --keep-logs-days 60
+```
+
+### Cleanup Policies
+
+| Item | Default Policy | Flag |
+|------|----------------|------|
+| Checkpoints | Keep last 3 | `--keep-checkpoints N` |
+| Logs | Keep 30 days | `--keep-logs-days N` |
+| Git branches | Delete merged | automatic |
+| Python cache | Delete all | automatic |
+| Processed data | Ask user | prompted |
+| Context files | **Never delete** | protected |
+| Data symlink | **Never touch** | protected |
+
+### What's Protected
+
+- `doc/agent/*` - All context files
+- `data` symlink - Source data reference
+- `results.tsv` - Experiment tracking
+- `CLAUDE.md` - Workspace instructions
+- Current git branch
+
 ## Quick Reference
 
 | Command | Purpose |
@@ -451,4 +533,6 @@ tail -5 results.tsv
 | `git log --oneline -5 --show-notes` | Check recent history |
 | `git notes add -m "..." HEAD` | Add implementation details |
 | `git notes show HEAD` | View implementation details |
+| `./scripts/cleanup.sh --dry-run` | Preview cleanup |
+| `./scripts/archive-experiment.sh <id>` | Archive experiment |
 | `/experiment_report` | Generate experiment report |
