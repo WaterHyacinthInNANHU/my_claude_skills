@@ -1,0 +1,65 @@
+# Experiment Setup Checklist
+
+## Inputs Verification
+
+- [ ] **Code path verified:** {{CODE_PATH}}
+- [ ] **Data path verified:** {{DATA_PATH}}
+- [ ] **Workspace created:** {{WORKSPACE_PATH}}
+
+## Instruction Understanding
+
+**Original instruction:**
+> {{INSTRUCTION}}
+
+**Clarified requirements:**
+- Goal:
+- Success metric:
+- Key parameters:
+- Constraints:
+
+**Questions asked to user:**
+1.
+2.
+
+## Workspace Setup
+
+- [ ] Created workspace directory structure
+- [ ] Cloned/linked code repository
+- [ ] Created experiment branch: `autoresearch/{{TAG}}`
+- [ ] Symlinked data (verified read-only)
+- [ ] Created CLAUDE.md with workspace rules
+- [ ] Initialized results.tsv
+
+## Codebase Understanding
+
+**Key files identified:**
+| Purpose | File |
+|---------|------|
+| Entry point | |
+| Config | |
+| Model | |
+| Data loading | |
+| Evaluation | |
+
+**Dependencies:**
+- Python version:
+- Key packages:
+- Hardware requirements:
+
+## Pre-flight Checks
+
+- [ ] All imports resolve
+- [ ] Config loads without errors
+- [ ] Data can be accessed through symlink
+- [ ] GPU available (if needed)
+- [ ] Sufficient disk space for outputs
+
+## Ready for Planning
+
+- [ ] All inputs verified
+- [ ] Instructions clarified
+- [ ] Workspace fully set up
+- [ ] Codebase understood
+- [ ] Pre-flight checks passed
+
+**Next step:** Run `/planning-with-files:plan`

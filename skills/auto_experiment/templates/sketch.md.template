@@ -1,0 +1,67 @@
+# Experiment Sketch
+
+> Workspace: {{TAG}}
+> Last updated: {{DATE}}
+
+## Current State
+
+- **Phase:** [setup / planning / smoke-test / training / analyzing / complete]
+- **Last action:**
+- **Blocking issues:** None
+
+## Goal
+
+{{INSTRUCTION}}
+
+## Approach
+
+<High-level strategy - what approach are we taking and why>
+
+## Key Decisions Made
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| | | |
+
+## Progress
+
+### Completed
+- [ ] Workspace setup
+- [ ] Codebase understood
+- [ ] Plan created
+- [ ] Smoke test passed
+- [ ] Training completed
+- [ ] Results analyzed
+- [ ] Report written
+
+### Current Experiment
+- **Exp ID:**
+- **Hypothesis:**
+- **Status:**
+- **Metric:**
+
+## Next Steps
+
+1. [ ] <immediate next action>
+2. [ ]
+3. [ ]
+
+## Open Questions
+
+-
+
+## Session Log
+
+| Date | Session Summary |
+|------|-----------------|
+| {{DATE}} | Initial setup |
+
+---
+
+## Quick Pointers
+
+- **Architecture decisions:** `doc/agent/architecture.md`
+- **Experiment reports:** `doc/agent/exp_*.md`
+- **Accumulated insights:** `doc/agent/findings.md`
+- **Implementation details:** `git notes show <commit>`
+- **Results tracking:** `results.tsv`

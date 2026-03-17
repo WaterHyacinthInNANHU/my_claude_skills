@@ -1,0 +1,83 @@
+# Experiment Log: {{EXP_ID}}
+
+> Date: {{DATE}}
+> Branch: autoresearch/{{TAG}}
+> Commit: {{COMMIT}}
+
+## Hypothesis
+
+What we're testing:
+>
+
+Expected outcome:
+>
+
+## Changes Made
+
+**Files modified:**
+-
+
+**Key changes:**
+```
+<diff or description>
+```
+
+## Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| | |
+
+## Execution
+
+**Command:**
+```bash
+
+```
+
+**Start time:**
+**End time:**
+**Duration:**
+
+## Results
+
+### Metrics
+
+| Metric | Value | vs Baseline |
+|--------|-------|-------------|
+| | | |
+
+### Training Curves
+
+(Paste or link to plots)
+
+### Qualitative Observations
+
+-
+
+## Analysis
+
+**What worked:**
+-
+
+**What didn't work:**
+-
+
+**Surprises:**
+-
+
+## Decision
+
+- [ ] **Keep** - Improvement confirmed
+- [ ] **Revert** - No improvement or regression
+- [ ] **Investigate** - Need more analysis
+
+## Next Steps
+
+1.
+2.
+
+---
+
+**Git notes added:** Yes/No
+**Results.tsv updated:** Yes/No

@@ -1,0 +1,55 @@
+# Architecture Decisions
+
+> Workspace: {{TAG}}
+
+## Overview
+
+<Brief description of the system/model architecture>
+
+## Key Design Decisions
+
+### Decision 1: <Title>
+
+**Context:** <What problem or choice we faced>
+
+**Options considered:**
+1. <Option A> - <pros/cons>
+2. <Option B> - <pros/cons>
+
+**Decision:** <What we chose>
+
+**Rationale:** <Why>
+
+**Date:** {{DATE}}
+
+---
+
+### Decision 2: <Title>
+
+...
+
+---
+
+## Model Architecture
+
+<Description or diagram>
+
+```
+<ASCII diagram or pseudocode>
+```
+
+## Data Pipeline
+
+<How data flows through the system>
+
+## Training Strategy
+
+<Optimizer, schedule, regularization, etc.>
+
+## Evaluation
+
+<Metrics, validation strategy>
+
+---
+
+*Update this file when making significant design decisions.*

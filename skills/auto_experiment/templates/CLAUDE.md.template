@@ -1,0 +1,192 @@
+# Experiment Workspace: {{TAG}}
+
+> Created: {{DATE}}
+> Branch: autoresearch/{{TAG}}
+> Instruction: {{INSTRUCTION}}
+
+---
+
+# MANDATORY SESSION PROTOCOL
+
+## YOU MUST DO THIS AT SESSION START
+
+**STOP. Before any work, execute these steps:**
+
+### Step 1: Read Current State
+```bash
+cat doc/agent/sketch.md
+```
+
+### Step 2: Check Recent History
+```bash
+git log --oneline -5 --show-notes
+tail -5 results.tsv
+```
+
+### Step 3: State Your Understanding
+
+Write out loud:
+> "Current phase: ___. Last completed: ___. Next step: ___. Blockers: ___."
+
+### Step 4: Proceed or Clarify
+
+- If clear → proceed with next step
+- If unclear → **ASK USER** before doing anything
+
+---
+
+## CONTEXT UPDATE TRIGGERS
+
+**Update context files incrementally, not just at session end:**
+
+| When | Update What |
+|------|-------------|
+| **After each significant action** | sketch.md (brief) |
+| **After experiment completes** | results.tsv + sketch.md |
+| **After design decision** | architecture.md |
+| **After insight/finding** | findings.md |
+| **Before risky change** | git commit + sketch.md |
+| **At session end** | sketch.md (full state) |
+
+---
+
+## UPDATE PROCEDURES
+
+### Quick Update (after significant action)
+
+```bash
+# Update sketch.md "Current State" section
+# - Phase: ...
+# - Last action: <what you just did>
+# - Next step: ...
+```
+
+### After Experiment Completes
+
+```bash
+# 1. Record result
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem_gb>\t<status>\t<description>" >> results.tsv
+
+# 2. Add implementation notes
+git notes add -m "Experiment: <description>
+Result: <metric>
+What worked: ...
+What didn't: ..." HEAD
+
+# 3. Update sketch.md with outcome
+```
+
+### After Design Decision
+
+Update `doc/agent/architecture.md`:
+```markdown
+### Decision: <title>
+**Context:** <problem>
+**Options:** <what was considered>
+**Decision:** <what was chosen>
+**Rationale:** <why>
+```
+
+### Before Risky Change
+
+```bash
+# Checkpoint current state
+git add -A && git commit -m "checkpoint: before <risky thing>"
+
+# Update sketch.md with what you're about to try
+```
+
+### At Session End
+
+```bash
+# 1. Full sketch.md update
+#    - Current phase
+#    - What was accomplished this session
+#    - Next steps (detailed)
+#    - Any blockers
+
+# 2. Commit all context
+git add doc/agent/
+git commit -m "session: <summary>"
+```
+
+---
+
+# CONTEXT FILES
+
+| File | Purpose | When to Update |
+|------|---------|----------------|
+| `doc/agent/sketch.md` | Current state, next steps | **Every session** |
+| `doc/agent/architecture.md` | Design decisions | When decisions made |
+| `doc/agent/findings.md` | What works/doesn't | After analysis |
+| `doc/agent/exp_*.md` | Experiment reports | After each experiment |
+| `results.tsv` | Metrics tracking | After each run |
+| `git notes` | Implementation details | Each commit |
+
+---
+
+# RULES
+
+## Data Policy
+
+- **Source data:** {{DATA_PATH}}
+- **NEVER modify** files in `data/` directory (it's a symlink)
+- Write outputs to: `outputs/processed_data/`
+
+## Two-Level Logging
+
+**High-level (doc/agent/):**
+- Architecture decisions
+- Experiment reports
+- Key findings
+- What you'd tell another researcher
+
+**Implementation details (git notes):**
+- Debugging steps
+- Why specific approaches were chosen
+- What didn't work
+- Technical gotchas
+
+## Version Control
+
+```bash
+# Before significant changes
+git add -A && git commit -m "checkpoint: <description>"
+
+# After failed experiment
+git reset --hard HEAD~1
+
+# After successful experiment
+git tag exp-<id>-success
+```
+
+---
+
+# QUICK REFERENCE
+
+```bash
+# Restore context
+cat doc/agent/sketch.md
+
+# Check history
+git log --oneline -5 --show-notes
+
+# Monitor training
+tail -f logs/train.log
+
+# View results
+column -t -s $'\t' results.tsv
+
+# Save implementation notes
+git notes add -m "..." HEAD
+```
+
+---
+
+# KEY FILES
+
+| Purpose | Path |
+|---------|------|
+| Training script | {{TRAIN_SCRIPT}} |
+| Config | {{CONFIG_PATH}} |
+| Evaluation | {{EVAL_SCRIPT}} |

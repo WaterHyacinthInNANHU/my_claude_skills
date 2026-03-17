@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/restore-context.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
