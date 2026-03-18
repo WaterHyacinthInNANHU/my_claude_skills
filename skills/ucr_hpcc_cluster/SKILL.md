@@ -7,6 +7,103 @@ description: Help users work with the UCR HPCC (High Performance Computing Cente
 
 Help users work with the UCR HPCC (High Performance Computing Center) cluster. This skill provides commands for connecting, submitting jobs, managing software, and handling data storage.
 
+## Auto-Configuration
+
+**When the user asks to "configure the cluster", "set up HPCC", or "install cluster aliases"**, automatically add the HPCC helper functions and aliases to their `~/.bashrc`.
+
+### What to Install
+
+Append the following block to `~/.bashrc` (check if already present first by searching for `# ── UCR HPCC`):
+
+```bash
+# ── UCR HPCC Cluster Helpers ───────────────────────────────────────────────
+
+# Launch Claude Code on compute node: ccn [hours]
+ccn() {
+    local hours="${1:-2}" dir="$(pwd)" partition="short"
+    (( hours > 2 )) && partition="epyc"
+    echo "Claude Code on $partition (${hours}h) | Exit: Ctrl+C then 'exit'"
+    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+}
+
+# Launch VS Code tunnel on compute node: vsc [hours]
+vsc() {
+    local hours="${1:-2}" partition="short"
+    (( hours > 2 )) && partition="epyc"
+    echo "VS Code tunnel on $partition (${hours}h) | Connect: https://vscode.dev/tunnel/<name>"
+    srun -p "$partition" -c 32 --mem=64GB -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
+}
+
+# Quick interactive node: node [hours] [partition]
+node() {
+    local hours="${1:-2}" partition="${2:-short}"
+    (( hours > 2 )) && [[ "$partition" == "short" ]] && partition="epyc"
+    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -l
+}
+
+# GPU interactive node: gpunode [hours]
+gpunode() {
+    local hours="${1:-1}"
+    srun -p gpu --gres=gpu:1 -c 8 --mem=32GB -t "${hours}:00:00" --pty bash -l
+}
+
+# Job monitoring aliases
+alias sq='squeue -u $USER -o "%.10i %.12j %.10P %.8T %.10M %.10l %.6C %.10m %R" --sort=-S'
+alias sqstart='squeue -u $USER --start -o "%.10i %.12j %.10P %.8T %.19S %.10l %R"'
+alias sqwatch='watch -n 5 "squeue -u $USER -o \"%.10i %.12j %.10P %.8T %.10M %.10l %.6C %R\""'
+alias sqgpu='squeue -p gpu,short_gpu,preempt_gpu -o "%.10i %.12j %.10P %.8u %.8T %.10M %b %R"'
+
+# GPU availability
+alias gpus='sinfo -p gpu,short_gpu,preempt_gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12,Partition:14" --noheader'
+
+# Job helpers: eff JOBID, joblog JOBID, joberr JOBID
+eff() { seff "$1"; }
+joblog() { tail -f "${2:-logs}"/*_"$1".out 2>/dev/null || echo "Log not found"; }
+joberr() { tail -f "${2:-logs}"/*_"$1".err 2>/dev/null || echo "Log not found"; }
+
+# Login node cleanup
+alias mymem='ps -U $USER -o pid,rss:12,etime,comm --sort=-rss | head -15'
+alias killnodes='pkill -u $USER node; pkill -u $USER -f "npm exec notebo"'
+
+# ── End HPCC Helpers ───────────────────────────────────────────────────────
+```
+
+### Installation Steps
+
+When configuring for a user:
+
+1. **Check if already configured:**
+   ```bash
+   grep -q "# ── UCR HPCC Cluster Helpers" ~/.bashrc && echo "Already configured" || echo "Not configured"
+   ```
+
+2. **If not configured, append the block above to `~/.bashrc`**
+
+3. **Remind user to reload:**
+   ```bash
+   source ~/.bashrc
+   ```
+
+### Quick Reference After Installation
+
+| Command | Description |
+|---------|-------------|
+| `ccn` | Launch Claude Code (2h default) |
+| `ccn 24` | Launch Claude Code for 24h |
+| `vsc` | Launch VS Code tunnel (2h default) |
+| `vsc 8` | Launch VS Code tunnel for 8h |
+| `node` | Interactive shell (2h default) |
+| `gpunode` | GPU interactive shell (1h default) |
+| `sq` | Show my jobs |
+| `sqwatch` | Watch my jobs (live refresh) |
+| `sqgpu` | Show all GPU jobs |
+| `gpus` | Show GPU availability |
+| `eff JOBID` | Job efficiency report |
+| `joblog JOBID` | Tail job stdout |
+| `joberr JOBID` | Tail job stderr |
+| `mymem` | Check my memory usage |
+| `killnodes` | Kill zombie node processes |
+
 ## Connection
 
 SSH to the cluster:
@@ -77,87 +174,23 @@ pkill -u $USER node
 pkill -u $USER -f "npm exec notebo"
 ```
 
-### Claude Code on HPCC
+### Claude Code & VS Code on HPCC
 
-Claude Code should be run on compute nodes to avoid login node memory limits. Add this function to `~/.bashrc`:
+**Important:** Run these tools on compute nodes, not login nodes. Use the auto-configured shortcuts (see [Auto-Configuration](#auto-configuration)):
 
-```bash
-# Launch Claude Code in an interactive SLURM session
-# Usage: ccn [hours]
-# Examples:
-#   ccn           # 2 hours (short partition)
-#   ccn 4         # 4 hours (auto-selects epyc)
-#   ccn 24        # 24 hours
-ccn() {
-    local hours="${1:-2}"
-    local dir="$(pwd)"
-    local partition="short"
+| Command | Description |
+|---------|-------------|
+| `ccn` | Launch Claude Code (2h, auto-selects partition) |
+| `ccn 24` | Launch Claude Code for 24 hours |
+| `vsc` | Launch VS Code tunnel (2h) |
+| `vsc 8` | Launch VS Code tunnel for 8 hours |
 
-    # Auto-select partition based on time (use arithmetic comparison)
-    if (( hours > 2 )); then
-        partition="epyc"
-    fi
-
-    echo "Launching Claude Code on $partition partition (${hours}h, 16GB RAM)..."
-    echo "Working directory: $dir"
-    echo "To exit: type 'exit' or press Ctrl+D"
-    echo ""
-
-    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
-}
-```
-
-**Usage:**
-```bash
-ccn        # 2 hours on short partition
-ccn 4      # 4 hours on epyc partition
-ccn 24     # 24 hours on epyc partition
-```
-
-**To exit:** Type `exit` or press `Ctrl+D`. If Claude is running, press `Ctrl+C` first to exit Claude, then `exit` to end the SLURM job.
-
-### VS Code on HPCC
-
-**Do NOT use Remote SSH** — it launches the code server on the login node, causing load issues and potential OOM kills.
-
-**Use Remote Tunnels instead** — this runs VS Code on a compute node. Add this function to `~/.bashrc`:
-
-```bash
-# Launch VS Code tunnel in an interactive SLURM session
-# Usage: vsc [hours]
-# Examples:
-#   vsc           # 2 hours (short partition)
-#   vsc 5         # 5 hours (epyc partition)
-#   vsc 24        # 24 hours
-vsc() {
-    local hours="${1:-2}"
-    local partition="short"
-
-    if (( hours > 2 )); then
-        partition="epyc"
-    fi
-
-    echo "Launching VS Code tunnel on $partition partition (${hours}h)..."
-    echo "After authorization, connect via:"
-    echo "  - Browser: https://vscode.dev/tunnel/<tunnel-name>"
-    echo "  - Desktop: Click green '><' icon -> Connect to Tunnel"
-    echo "To exit: Ctrl+C to stop tunnel, then 'exit'"
-    echo ""
-
-    srun -p "$partition" -c 4 --mem=8GB -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
-}
-```
-
-**First-time setup:**
-1. Run `vsc` — it will prompt you to authorize via GitHub
+**VS Code first-time setup:**
+1. Run `vsc` — it prompts for GitHub authorization
 2. Follow the link and enter the code
-3. Once authorized, you'll get a tunnel URL
+3. Connect via `https://vscode.dev/tunnel/<name>` or desktop VS Code "Remote - Tunnels" extension
 
-**Connecting:**
-- **Browser:** Go to `https://vscode.dev/tunnel/<tunnel-name>`
-- **Desktop VS Code:** Install "Remote - Tunnels" extension, click the green `><` icon in the bottom-left, select "Connect to Tunnel"
-
-**To exit:** Press `Ctrl+C` to stop the tunnel, then type `exit` to end the SLURM job.
+**To exit:** `Ctrl+C` to stop the app, then `exit` to end the SLURM job.
 
 ### Batch Jobs
 
