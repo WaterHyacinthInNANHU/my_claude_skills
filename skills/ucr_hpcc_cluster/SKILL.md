@@ -44,6 +44,121 @@ srun -p gpu --gres=gpu:1 --mem=100g --time=1:00:00 --pty bash -l
 srun -p gpu --gres=gpu:a100:1 --mem=100g --pty bash -l
 ```
 
+### Login Node Memory Limits
+
+**IMPORTANT:** Login nodes enforce per-user memory limits (typically 1 GB via cgroups). Running memory-intensive tools like Claude Code, VS Code remote sessions, or Jupyter kernels on login nodes can trigger the OOM killer.
+
+**Symptoms of hitting the limit:**
+- Processes getting killed randomly
+- `dmesg` shows: `Memory cgroup out of memory: Killed process ... constraint=CONSTRAINT_MEMCG`
+
+**Check for OOM kills:**
+```bash
+dmesg -T | grep -i "oom\|killed" | tail -10
+```
+
+**Check your current memory usage:**
+```bash
+ps -U $USER -o pid,rss:12,comm --sort=-rss | head -15
+```
+
+**Solution:** Run memory-intensive tools on compute nodes via `srun`:
+```bash
+srun -p short -c 4 --mem=16GB -t 2:00:00 --pty bash -l
+```
+
+**Clean up zombie processes:** Old VS Code sessions and Jupyter kernels often leave orphaned `node` processes consuming memory:
+```bash
+# Check for old node processes
+ps -U $USER -o pid,rss:12,etime,comm --sort=-rss | grep node
+
+# Kill them
+pkill -u $USER node
+pkill -u $USER -f "npm exec notebo"
+```
+
+### Claude Code on HPCC
+
+Claude Code should be run on compute nodes to avoid login node memory limits. Add this function to `~/.bashrc`:
+
+```bash
+# Launch Claude Code in an interactive SLURM session
+# Usage: ccn [hours]
+# Examples:
+#   ccn           # 2 hours (short partition)
+#   ccn 4         # 4 hours (auto-selects epyc)
+#   ccn 24        # 24 hours
+ccn() {
+    local hours="${1:-2}"
+    local dir="$(pwd)"
+    local partition="short"
+
+    # Auto-select partition based on time (use arithmetic comparison)
+    if (( hours > 2 )); then
+        partition="epyc"
+    fi
+
+    echo "Launching Claude Code on $partition partition (${hours}h, 16GB RAM)..."
+    echo "Working directory: $dir"
+    echo "To exit: type 'exit' or press Ctrl+D"
+    echo ""
+
+    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+}
+```
+
+**Usage:**
+```bash
+ccn        # 2 hours on short partition
+ccn 4      # 4 hours on epyc partition
+ccn 24     # 24 hours on epyc partition
+```
+
+**To exit:** Type `exit` or press `Ctrl+D`. If Claude is running, press `Ctrl+C` first to exit Claude, then `exit` to end the SLURM job.
+
+### VS Code on HPCC
+
+**Do NOT use Remote SSH** — it launches the code server on the login node, causing load issues and potential OOM kills.
+
+**Use Remote Tunnels instead** — this runs VS Code on a compute node. Add this function to `~/.bashrc`:
+
+```bash
+# Launch VS Code tunnel in an interactive SLURM session
+# Usage: vsc [hours]
+# Examples:
+#   vsc           # 2 hours (short partition)
+#   vsc 5         # 5 hours (epyc partition)
+#   vsc 24        # 24 hours
+vsc() {
+    local hours="${1:-2}"
+    local partition="short"
+
+    if (( hours > 2 )); then
+        partition="epyc"
+    fi
+
+    echo "Launching VS Code tunnel on $partition partition (${hours}h)..."
+    echo "After authorization, connect via:"
+    echo "  - Browser: https://vscode.dev/tunnel/<tunnel-name>"
+    echo "  - Desktop: Click green '><' icon -> Connect to Tunnel"
+    echo "To exit: Ctrl+C to stop tunnel, then 'exit'"
+    echo ""
+
+    srun -p "$partition" -c 4 --mem=8GB -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
+}
+```
+
+**First-time setup:**
+1. Run `vsc` — it will prompt you to authorize via GitHub
+2. Follow the link and enter the code
+3. Once authorized, you'll get a tunnel URL
+
+**Connecting:**
+- **Browser:** Go to `https://vscode.dev/tunnel/<tunnel-name>`
+- **Desktop VS Code:** Install "Remote - Tunnels" extension, click the green `><` icon in the bottom-left, select "Connect to Tunnel"
+
+**To exit:** Press `Ctrl+C` to stop the tunnel, then type `exit` to end the SLURM job.
+
 ### Batch Jobs
 
 Submit a script:

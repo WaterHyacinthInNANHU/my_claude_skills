@@ -88,7 +88,8 @@
       "Bash(bash /bigdata/jlilab/myan035/workspace/my_claude_skills/install.sh --papers paper_rob__3d_diffusion_policy)",
       "Read(//tmp/**)",
       "Bash(gh repo clone hengyuan-hu/ibrl ibrl_explore --depth 1)",
-      "Bash(ln -sfn /bigdata/jlilab/myan035/workspace/my_claude_skills/skills/papers/paper_rob__ibrl /rhome/myan035/.claude/skills/paper_rob__ibrl)"
+      "Bash(ln -sfn /bigdata/jlilab/myan035/workspace/my_claude_skills/skills/papers/paper_rob__ibrl /rhome/myan035/.claude/skills/paper_rob__ibrl)",
+      "Bash(./install.sh:*)"
     ]
   }
 }
