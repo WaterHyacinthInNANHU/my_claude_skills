@@ -5,40 +5,72 @@ description: Write structured experiment reports for robot learning and AI resea
 
 # experiment_report
 
-Generate structured experiment reports for robot learning / AI research. Reports follow a 5-section format: Motivation, Setup, Method, Results, Analysis.
+Generate structured experiment reports for robot learning / AI research. Reports are designed to be **scannable** — a reader should get the key takeaway from the TL;DR and summary table without reading the full report.
 
 ## When to Use
 
 - After completing an experiment run
 - When documenting ablations or comparisons
 - When proposing next experiments based on findings
+- When writing to Notion, markdown, or any structured doc
 
-## Report Sections
+## Report Structure
 
-### 1. Motivation
+### 0. Header & TL;DR
 
-Answer **why** this experiment exists:
+Every report starts with metadata and a 1-2 sentence conclusion.
+
+Required fields:
+- **Title** — descriptive, includes the main result (e.g., "DAgger Flow PC 1024+1024: 94% Success")
+- **Date** — YYYY-MM-DD
+- **Project** — project name
+- **Status** — success | partial | failed | in-progress
+- **TL;DR** — Lead with the conclusion. State the best result and the key insight in 1-2 sentences. This is the most important part — a busy reader may only see this.
+
+### 1. Results Summary (FIRST, before setup)
+
+Put the results table **at the top**, not buried after methodology. Readers want to see numbers immediately.
+
+**Comparison table** — always include, even for single experiments (compare against baseline):
+
+| Experiment | Key Metric 1 | Key Metric 2 | Training Time | W&B | Status |
+|------------|-------------|-------------|---------------|-----|--------|
+
+Rules for the results table:
+- **Bold the best result** in each metric column
+- **Include W&B link** for every run (as inline link in experiment name or separate column)
+- Include SLURM Job ID if on cluster
+- Mark status: Completed / Running / Failed / Timed out
+- Use consistent units and precision across rows
+
+If there are multiple experiment groups, use separate tables with clear headers.
+
+After the table, add a **Key Findings** section — 3-5 numbered bullet points distilling the most important insights. Each finding should be a standalone statement that doesn't require reading the rest of the report.
+
+### 2. Motivation
+
+Answer **why** this experiment exists in 2-4 sentences:
 - What hypothesis are we testing?
 - What gap in prior results does this address?
 - What decision depends on the outcome?
 
-Keep it to 2-4 sentences. Link to prior experiment reports if this is a follow-up.
+Link to prior experiment reports if this is a follow-up.
 
-### 2. Experiment Setup
+### 3. Experiment Setup
 
 Provide enough detail to **reproduce** the experiment:
 
 | Item | What to include |
 |------|----------------|
-| **Task / Environment** | Env name, version, task variant, observation/action space |
-| **Dataset** | Name, size, collection method, train/val/test split |
-| **Codebase** | Repo, branch/commit hash, any patches applied |
-| **Hardware** | GPU type, count, node name, SLURM job ID if on cluster |
-| **Hyperparameters** | Learning rate, batch size, epochs, seed(s), any sweep ranges |
-| **Baseline** | What you compare against — prior run ID, published number, or config name |
-| **Config file** | Path or inline snippet of the config used |
+| **Task / Environment** | Env name, version, task variant, obs/action space |
+| **Dataset** | Name, size, collection method |
+| **Codebase** | Repo, branch/commit hash |
+| **Hardware** | GPU type, count, SLURM partition, job IDs |
+| **Hyperparameters** | Learning rate, batch size, epochs, seed(s) |
+| **Baseline** | What you compare against — prior run ID or config name |
+| **Config file** | Path or inline snippet |
 
-### 3. Method
+### 4. Method
 
 Describe **what changed** relative to the baseline:
 - Algorithmic changes (new loss, architecture tweak, reward shaping)
@@ -47,38 +79,42 @@ Describe **what changed** relative to the baseline:
 
 Be precise: "replaced MLP policy head with 2-layer transformer (d=256, 4 heads)" not "changed the policy network".
 
-### 4. Results
+### 5. Detailed Results
 
-Present outcomes with **numbers and evidence**:
+Expand on the summary table with:
+- **Training curves** — link to W&B / TensorBoard dashboard
+- **Per-step metrics** — table of eval metrics at key checkpoints (e.g., every 500 steps) if training dynamics matter (collapse, recovery, convergence)
+- **Qualitative observations** — rollout videos, failure mode descriptions
+- **Timing** — wall-clock time per step, total training time, any timeouts or restarts
 
-| What | Format |
-|------|--------|
-| **Key metrics** | Table with baseline vs. experiment (mean +/- std over N seeds) |
-| **Training curves** | Screenshot or link to W&B / TensorBoard |
-| **Qualitative** | Rollout videos, failure mode descriptions |
-| **W&B link** | Direct link to the run or group |
-| **Artifacts** | Checkpoint path, evaluation logs |
-
-Always include:
-- Success rate or return (with confidence intervals when possible)
-- Wall-clock training time
-- Whether the result is statistically significant or just a single seed
-
-### 5. Analysis & Next Steps
+### 6. Analysis & Next Steps
 
 Interpret results and propose actions:
 
-- **What worked / didn't work** — root-cause analysis, not just "it's worse"
+- **Key findings** — numbered insights (can expand on the summary findings)
+- **What went wrong** — root-cause analysis with evidence, not just "it's worse". Include the fix if found.
 - **Surprising observations** — unexpected behaviors, training instabilities
-- **Ablation ideas** — which component to isolate next
-- **Next experiment proposal** — concrete description with expected outcome
-- **Decision** — keep, discard, or iterate on this direction
+- **Next experiment proposal** — concrete description with expected outcome and priority
+
+### 7. Artifacts
+
+Always include a reference section with paths and links:
+
+| Artifact | Path / Link |
+|----------|------------|
+| Config file | `path/to/config.yaml` |
+| Checkpoint (best) | `path/to/checkpoint/` |
+| Training logs | `path/to/logs/` |
+| W&B run | `https://wandb.ai/...` |
+| SLURM output | `path/to/slurm_output.out` |
 
 ## Writing Guidelines
 
+- **Lead with results, not setup** — the summary table comes before methodology
 - Use **past tense** for what was done, **present tense** for analysis
 - Lead with the conclusion: "X improved success rate by 12% over baseline"
 - Attach raw numbers; don't only show plots
-- One experiment per report; group related runs under a single report with sub-sections
+- **Every experiment must have a W&B link** — no exceptions
+- One report per experiment batch; group related runs under a single report with sub-sections
 - Date every report (YYYY-MM-DD)
-- Tag with project name and experiment ID for searchability
+- When writing to Notion: use Notion table syntax, bold the best results, include inline links

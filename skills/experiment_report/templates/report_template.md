@@ -1,16 +1,33 @@
-# Experiment Report: [TITLE]
+# Experiment Report: [TITLE — include main result]
 
 **Date:** YYYY-MM-DD
 **Author:** [name]
 **Project:** [project name]
-**Experiment ID:** [exp-XXX]
-**Status:** success | partial | failed
+**Status:** success | partial | failed | in-progress
+
+**TL;DR:** [1-2 sentence conclusion. Lead with the best result and key insight.]
 
 ---
 
-## 1. Motivation
+## 1. Results Summary
 
-<!-- Why are we running this experiment? What hypothesis are we testing? -->
+<!-- PUT RESULTS FIRST. Readers want numbers immediately. -->
+
+| Experiment | Key Metric 1 | Key Metric 2 | Training Time | W&B | Status |
+|------------|-------------|-------------|---------------|-----|--------|
+| **Best variant** | **XX%** | **YY%** | Xh | [wandb](link) | Completed |
+| Baseline | XX% | YY% | Xh | [wandb](link) | Completed |
+| Variant B | XX% | YY% | Xh | [wandb](link) | Failed |
+
+### Key Findings
+
+1. **[Finding 1]** — standalone insight that doesn't require reading the full report
+2. **[Finding 2]** — e.g., "Flow matching outperforms MSE by 60pp despite higher loss"
+3. **[Finding 3]** — e.g., "Fewer points (1024) beat more points (4096) and train 3x faster"
+
+---
+
+## 2. Motivation
 
 **Hypothesis:** [If we do X, then Y should improve because Z.]
 
@@ -18,16 +35,15 @@
 
 ---
 
-## 2. Experiment Setup
+## 3. Experiment Setup
 
 | Item | Details |
 |------|---------|
 | Task / Env | |
-| Dataset | |
 | Repo / Branch | |
 | Commit | |
 | Hardware | |
-| SLURM Job ID | |
+| SLURM Job IDs | |
 | Seeds | |
 | Training steps | |
 | Batch size | |
@@ -47,52 +63,66 @@
 
 ---
 
-## 3. Method
+## 4. Method
 
-<!-- What changed compared to the baseline? Be specific. -->
-
-**Changes:**
+**Changes relative to baseline:**
 1.
 2.
 3.
 
 ---
 
-## 4. Results
+## 5. Detailed Results
 
-### Key Metrics
+### Per-Checkpoint Metrics
 
-| Method | Success Rate | Return | Training Time |
-|--------|-------------|--------|---------------|
-| Baseline | | | |
-| Ours | | | |
+<!-- Include if training dynamics matter (collapse, recovery, etc.) -->
+
+| Step | Success Once | Success at End | Loss | Notes |
+|------|-------------|---------------|------|-------|
+| 500 | | | | |
+| 1000 | | | | |
+| ... | | | | |
 
 ### Training Curves
 
-<!-- Paste screenshot or link -->
-
-**W&B:** [link]
+**W&B Dashboard:** [link to group/workspace view]
 
 ### Qualitative Observations
 
-<!-- Rollout videos, failure modes, etc. -->
+<!-- Rollout videos, failure modes, behavioral descriptions -->
+
+### Timing & Infrastructure
+
+<!-- Wall-clock time, per-step speed, any timeouts/restarts/resubmits -->
 
 ---
 
-## 5. Analysis & Next Steps
+## 6. Analysis & Next Steps
 
 ### What Worked
+<!-- Root-cause analysis with evidence -->
 
-
-### What Didn't Work
-
+### What Went Wrong
+<!-- Include the fix if found -->
 
 ### Surprising Observations
 
-
 ### Next Experiment Proposal
 
-**Proposed:** [exp-XXX+1] — [one-line description]
+**Proposed:** [one-line description]
 - Change:
 - Expected outcome:
 - Priority: high | medium | low
+
+---
+
+## 7. Artifacts
+
+| Artifact | Path / Link |
+|----------|------------|
+| Config | `path/to/config.yaml` |
+| Best checkpoint | `path/to/checkpoint/` |
+| Training logs | `path/to/logs/` |
+| W&B run(s) | [link](https://wandb.ai/...) |
+| SLURM output | `path/to/slurm.out` |
