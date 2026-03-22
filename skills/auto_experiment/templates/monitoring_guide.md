@@ -1,211 +1,95 @@
-# Experiment Monitoring Guide
+# Monitoring & Execution Guide
 
-## Smoke Test (Stage 1)
+> Reference material for Step 4.2-4.3 of the experiment loop.
+> Session protocol and early stopping heuristics are in CLAUDE.md.
 
-### Quick Validation Run
+## Smoke Test Checklist
 
-```bash
-# Run minimal training to catch errors
-python train.py --epochs 1 --debug 2>&1 | tee logs/smoke_test.log
+Run before entering the experiment loop:
 
-# Or with reduced data
-python train.py --data_fraction 0.01 --epochs 1 2>&1 | tee logs/smoke_test.log
-```
+- [ ] All imports resolve
+- [ ] Config loads without errors
+- [ ] Data loads through symlink
+- [ ] Forward pass completes (correct output shape)
+- [ ] Backward pass completes (gradients exist)
+- [ ] Metrics are computed
+- [ ] Checkpoint saves correctly
+- [ ] GPU memory within budget
 
 ### Common Smoke Test Failures
 
-| Error Type | Check For | Fix |
-|------------|-----------|-----|
-| ImportError | Missing dependencies | `pip install <package>` |
-| FileNotFoundError | Wrong paths in config | Update config paths |
-| CUDA OOM | Batch size too large | Reduce batch_size |
-| Shape mismatch | Model/data incompatibility | Check input dimensions |
-| NaN loss | Learning rate too high | Reduce lr, add gradient clipping |
+| Error | Check | Fix |
+|-------|-------|-----|
+| ImportError | Missing dependency | `pip install <package>` |
+| FileNotFoundError | Path in config | Update config paths |
+| CUDA OOM | Batch size | Reduce batch_size |
+| Shape mismatch | Model vs data dims | Check input dimensions |
+| NaN loss first step | LR or init | Reduce LR, check init |
 
-### Smoke Test Checklist
-
-- [ ] Training starts without errors
-- [ ] Data loads correctly
-- [ ] Model initializes
-- [ ] First forward pass completes
-- [ ] First backward pass completes
-- [ ] Metrics are computed
-- [ ] Checkpoints save correctly
-- [ ] Memory usage is acceptable
-
-## Full Training (Stage 2)
-
-### Launch Commands
-
-**Local (background):**
+### Reduced-data smoke test (alternative)
 ```bash
-nohup python train.py <args> > logs/train.log 2>&1 &
+python train.py --data_fraction 0.01 --epochs 1 2>&1 | tee logs/smoke_test.log
+```
+
+## Launch Commands
+
+### Local (background)
+```bash
+nohup python train.py <args> > logs/train_r<N>.log 2>&1 &
 echo $! > logs/train.pid
 ```
 
-**SLURM:**
+### SLURM
 ```bash
-sbatch --job-name={{TAG}} job.sh
+sbatch --job-name=<tag>-r<N> job.sh
 ```
 
-**tmux/screen:**
+### tmux (interactive monitoring)
 ```bash
 tmux new -s exp
-python train.py <args> 2>&1 | tee logs/train.log
+python train.py <args> 2>&1 | tee logs/train_r<N>.log
 # Ctrl+B, D to detach
 ```
 
-### Monitoring Commands
+## Monitor Script Usage
 
-**Log monitoring:**
 ```bash
-# Follow log output
-tail -f logs/train.log
+# Basic usage
+./scripts/monitor.sh --log logs/train_r<N>.log --pid $(cat logs/train.pid)
 
-# Search for specific patterns
-grep -E "(loss|accuracy|epoch)" logs/train.log
+# Custom interval and metrics
+./scripts/monitor.sh --log logs/train_r<N>.log --interval 180 --metric "(loss|reward|val_)"
 
-# Last N lines
-tail -100 logs/train.log
+# SLURM job
+./scripts/monitor.sh --slurm <job_id> --log slurm-<job_id>.out
 ```
 
-**GPU monitoring:**
-```bash
-# Continuous GPU stats
-nvidia-smi -l 5
+The script:
+- Only prints when metrics change (saves context)
+- Prints `MONITOR_DONE:<status>:<time>` on completion
+- Auto-detects training end via PID, SLURM state, or log staleness
 
-# GPU utilization only
+## Manual Status Checks
+
+```bash
+# Process running?
+kill -0 $(cat logs/train.pid) 2>/dev/null && echo "Running" || echo "Stopped"
+
+# GPU usage
 nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv -l 5
 
-# Watch GPU memory
-watch -n 1 nvidia-smi
+# SLURM status
+squeue -j <job_id> -h -o "%T %M %l"
+sacct -j <job_id> --format=JobID,State,Elapsed,MaxRSS
 ```
 
-**Process monitoring:**
-```bash
-# Check if training is running
-ps aux | grep train.py
+## Health Indicators
 
-# Check by PID
-kill -0 $(cat logs/train.pid) && echo "Running" || echo "Stopped"
-
-# Resource usage
-htop -p $(cat logs/train.pid)
-```
-
-**SLURM monitoring:**
-```bash
-# Job status
-squeue -u $USER
-
-# Job details
-scontrol show job <job_id>
-
-# Resource usage
-sacct -j <job_id> --format=JobID,State,Elapsed,MaxRSS,MaxVMSize
-
-# Job output
-tail -f slurm-<job_id>.out
-```
-
-### Progress Indicators
-
-**Look for in logs:**
-- Epoch number / Total epochs
-- Step number / Total steps
-- Loss values (should decrease)
-- Learning rate (if scheduled)
-- Validation metrics (periodic)
-- ETA estimates
-
-**Example progress parsing:**
-```bash
-# Extract loss progression
-grep "loss" logs/train.log | tail -20
-
-# Count completed epochs
-grep -c "Epoch.*completed" logs/train.log
-
-# Check latest metric
-grep "val_" logs/train.log | tail -5
-```
-
-### Health Checks
-
-**Signs training is healthy:**
-- [ ] Loss is decreasing (or fluctuating down)
-- [ ] GPU utilization is high (>80%)
-- [ ] No error messages in log
-- [ ] Memory usage is stable
-- [ ] Disk space is sufficient
-
-**Warning signs:**
-- Loss increasing or stuck
-- GPU utilization low (<50%)
-- Memory constantly growing
-- Repeated warnings in log
-- No output for long periods
-
-### Intervention Points
-
-**When to intervene:**
-
-| Situation | Action |
-|-----------|--------|
-| Loss exploding (NaN/Inf) | Stop, reduce LR, add gradient clipping |
-| Loss stuck | Check for bugs, try different optimizer |
-| OOM errors | Reduce batch size, enable gradient checkpointing |
-| Slow training | Profile code, check data loading |
-| Disk full | Clear old checkpoints, increase quota |
-
-**How to stop:**
-```bash
-# Graceful (if supported)
-kill -SIGTERM $(cat logs/train.pid)
-
-# Force stop
-kill -9 $(cat logs/train.pid)
-
-# SLURM
-scancel <job_id>
-```
-
-## Completion Detection
-
-### Automated Completion Check
-
-```bash
-# Poll for completion
-while kill -0 $(cat logs/train.pid) 2>/dev/null; do
-    echo "Still running..."
-    sleep 60
-done
-echo "Training completed!"
-```
-
-### Success Indicators
-
-- [ ] "Training complete" message in log
-- [ ] Final checkpoint saved
-- [ ] Final metrics logged
-- [ ] Process exited with code 0
-
-### Post-Completion Checklist
-
-- [ ] Verify final checkpoint exists
-- [ ] Extract final metrics from log
-- [ ] Check for any errors near end of log
-- [ ] Update results.tsv
-- [ ] Commit checkpoint and logs
-
-```bash
-# Extract final results
-tail -50 logs/train.log
-
-# Update tracking
-echo -e "$(git rev-parse --short HEAD)\t<final_metric>\tsuccess\t<description>" >> results.tsv
-
-# Commit
-git add outputs/ logs/
-git commit -m "exp: <description> - <metric>"
-```
+| Sign | Meaning |
+|------|---------|
+| GPU util >80% | Healthy — compute-bound |
+| GPU util <30% | Data loading bottleneck |
+| Memory growing | Possible memory leak |
+| No log output for 5+ min | Check if process alive |
+| Loss spikes then recovers | May be OK (LR warmup, hard batches) |
+| Loss spikes and stays | Problem — consider stopping |

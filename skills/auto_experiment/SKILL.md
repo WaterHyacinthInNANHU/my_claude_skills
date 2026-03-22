@@ -5,7 +5,15 @@ description: Automated experiment workflow for code + data experiments with stru
 
 # auto_experiment
 
-Automated experiment workflow that handles workspace setup, planning, execution monitoring, and result analysis. Designed for ML/AI research experiments with proper version control and logging.
+Automated experiment workflow: workspace setup, iterative experiment loop, and result analysis.
+
+## Agent Reading Order
+
+```
+1. This file (SKILL.md)       — Full workflow, steps 1-5
+2. CLAUDE.md.template          — Installed to workspace; session protocol, context rules
+3. Templates (sketch.md, etc.) — Used during setup, not read at runtime
+```
 
 ## Inputs
 
@@ -19,162 +27,132 @@ Automated experiment workflow that handles workspace setup, planning, execution 
 ## Workflow Overview
 
 ```
-Step 1: Confirm Inputs → Step 2: Setup Workspace → Step 3: Plan Experiment
-                                                          ↓
-Step 5: Final Report  ←──────── Step 4: Experiment Loop
-                                  ┌→ Setup Round (branch)
-                                  │→ Run (launch)
-                                  │→ Monitor (early stop?)
-                                  │→ Analyze (diagnose)
-                                  │→ Propose (next hypothesis)
-                                  └── Loop until target met
+Step 1: Confirm Inputs → Step 2: Setup Workspace → Step 3: Plan
+                                                       ↓
+Step 5: Final Report  ←──── Step 4: Experiment Loop
+                              ┌→ Setup Round (branch)
+                              │→ Run (launch)
+                              │→ Monitor (early stop?)
+                              │→ Analyze (diagnose)
+                              │→ Propose (next hypothesis)
+                              └── Loop until done
 ```
+
+---
 
 ## Step 1: Confirm Inputs & Understand Instructions
 
-**Actions:**
 1. Verify all paths exist and are accessible
 2. Understand the experiment instruction
 3. **ASK USER** for clarification on:
    - Unclear requirements
-   - Missing parameters (seeds, epochs, etc.)
-   - Expected outcomes/metrics
+   - Missing parameters (seeds, epochs, GPUs, etc.)
+   - Success metric to track
+   - Expected outcomes
 
-**Validation Checklist:**
+**Validation checklist:**
 - [ ] Code path exists and is a valid git repo (or clonable URL)
 - [ ] Data path exists and contains expected files
 - [ ] Workspace path parent directory exists
 - [ ] Experiment instruction is clear and actionable
+- [ ] Success metric defined (e.g., val_loss, accuracy, reward)
+
+---
 
 ## Step 2: Create Workspace
 
-### Branch Naming Convention
-
-Use the `autoresearch/<tag>` pattern from [Karpathy's autoresearch](https://github.com/karpathy/autoresearch):
+### Run Setup Script
 
 ```bash
-# Format: autoresearch/<date>[-<variant>]
-# Examples:
-autoresearch/mar17
-autoresearch/mar17-ablation
-autoresearch/mar17-gpu0
+# Automated setup
+./scripts/setup.sh \
+  --code <code_path> \
+  --data <data_path> \
+  --workspace <workspace_path> \
+  --tag <experiment_tag>
+```
 
-# Check branch doesn't exist, then create
-git checkout -b autoresearch/<tag>
+Or manually:
+
+```bash
+mkdir -p <workspace>/{outputs,logs,doc/agent,.claude/hooks,scripts}
+
+# Code: clone on new branch
+cd <workspace>
+git clone <code_path> code
+cd code && git checkout -b autoresearch/<tag>
+
+# Data: symlink only (NEVER copy or modify)
+ln -s <data_path> <workspace>/data
+
+# Initialize tracking
+echo -e "commit\tmetric\tmemory_gb\tstatus\tdescription" > results.tsv
+
+# Initialize context files
+touch doc/agent/{sketch.md,architecture.md,findings.md}
+
+# Install scripts and hooks
+cp <skill_path>/templates/scripts/*.sh scripts/ && chmod +x scripts/*.sh
+cp <skill_path>/templates/hooks/restore-context.sh .claude/hooks/ && chmod +x .claude/hooks/restore-context.sh
+cp <skill_path>/templates/hooks/settings.json .claude/settings.json
+```
+
+### Branch Naming
+
+Pattern: `autoresearch/<tag>` (from [Karpathy's autoresearch](https://github.com/karpathy/autoresearch))
+
+```bash
+autoresearch/mar22            # workspace branch
+autoresearch/mar22-r1         # round 1
+autoresearch/mar22-r2         # round 2
 ```
 
 ### Workspace Structure
 
 ```
 <workspace>/
-├── code/                    # Git worktree or clone (on experiment branch)
-├── data -> /path/to/data    # SYMLINK only - never modify source data
+├── code/                    # Git repo on experiment branch
+├── data -> /path/to/data    # SYMLINK only
 ├── outputs/                 # Training outputs, checkpoints
-├── logs/                    # Training logs
-├── doc/
-│   └── agent/              # High-level logs (architecture, params, reports)
-│       ├── sketch.md       # CRITICAL: Current state & next steps
-│       ├── architecture.md # Design decisions & rationale
-│       ├── findings.md     # Accumulated insights
-│       └── exp_*.md        # Individual experiment reports
-├── CLAUDE.md               # Agent instructions for this workspace
-└── results.tsv             # Experiment results tracking
+├── logs/                    # Training logs (per-round: train_r1.log, etc.)
+├── doc/agent/               # High-level context (see CLAUDE.md)
+│   ├── sketch.md            # Current state & next steps
+│   ├── architecture.md      # Design decisions
+│   ├── findings.md          # Accumulated insights & baselines
+│   └── exp_r*.md            # Per-round analysis reports
+├── scripts/                 # Utility scripts (monitor, cleanup, archive)
+├── results.tsv              # Experiment results tracking
+├── CLAUDE.md                # Agent instructions (from template)
+└── .claude/hooks/           # SessionStart context restoration
 ```
 
-### Setup Commands
+### Write CLAUDE.md
 
-```bash
-# Create workspace
-mkdir -p <workspace>/{outputs,logs,doc/agent,.claude/hooks}
+Copy from `templates/CLAUDE.md.template`, fill in `{{placeholders}}`.
 
-# Clone/worktree code on new branch
-cd <workspace>
-git clone <code_path> code  # or git worktree add
-cd code
-git checkout -b autoresearch/<tag>
+CLAUDE.md is the **single source of truth** for:
+- Session start/end protocol
+- Context update triggers
+- Early stopping heuristics
+- Experiment loop protocol
+- Data and logging rules
 
-# Symlink data (NEVER copy or modify)
-ln -s <data_path> <workspace>/data
+### Experiment ID Convention
 
-# Initialize results tracking
-echo -e "commit\tmetric\tmemory_gb\tstatus\tdescription" > results.tsv
+Rounds use sequential integers: `r1`, `r2`, `r3`, ...
 
-# Initialize context files
-touch doc/agent/sketch.md doc/agent/architecture.md doc/agent/findings.md
+| ID | Branch | Log | Report |
+|----|--------|-----|--------|
+| r1 | `autoresearch/<tag>-r1` | `logs/train_r1.log` | `doc/agent/exp_r1.md` |
+| r2 | `autoresearch/<tag>-r2` | `logs/train_r2.log` | `doc/agent/exp_r2.md` |
 
-# Install context restoration hook
-cp <skill_path>/templates/hooks/restore-context.sh .claude/hooks/
-chmod +x .claude/hooks/restore-context.sh
-
-# Install utility scripts
-mkdir -p scripts
-cp <skill_path>/templates/scripts/*.sh scripts/
-chmod +x scripts/*.sh
-
-# Configure hook in .claude/settings.json
-cat > .claude/settings.json << 'EOF'
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/restore-context.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  }
-}
-EOF
-```
-
-### Create CLAUDE.md
-
-Write workspace-specific instructions to `<workspace>/CLAUDE.md`:
-
-```markdown
-# Experiment Workspace: <tag>
-
-## Data Policy
-- Data is symlinked from: <original_data_path>
-- **NEVER modify the data directory**
-- Local data changes go to: outputs/processed_data/
-
-## Logging Policy
-### High-level logs (doc/agent/)
-- Architecture decisions
-- Important hyperparameter changes
-- Experiment reports
-- Key findings
-
-### Implementation details (git notes)
-- Check previous implementation notes: `git notes show <commit>`
-- Add implementation notes: `git notes add -m "details..." <commit>`
-
-## Code Version Control
-- Commit before any significant changes
-- Create sub-branches for risky experiments: `git checkout -b <tag>-<variant>`
-- Use `git reset --hard HEAD~1` to revert failed experiments
-
-## Key Files
-- Config: <path>
-- Main training script: <path>
-- Evaluation: <path>
-```
+---
 
 ## Step 3: Plan Experiment
 
-**Initialize context files and create plan:**
+### 3.1 Initialize sketch.md
 
-### 3.1 Initialize Context Files
-
-```bash
-# Create initial sketch.md
-cat > doc/agent/sketch.md << 'EOF'
+```markdown
 # Experiment Sketch
 
 ## Current State
@@ -185,59 +163,46 @@ cat > doc/agent/sketch.md << 'EOF'
 ## Goal
 <instruction from user>
 
+## Baselines
+| Source | Metric | Value | Notes |
+|--------|--------|-------|-------|
+| Paper  |        |       |       |
+
 ## Approach
-<to be determined>
+<to be determined after codebase exploration>
 
 ## Next Steps
-1. [ ] Understand codebase structure
+1. [ ] Understand codebase
 2. [ ] Identify files to modify
-3. [ ] Define success metrics
-4. [ ] Create experiment plan
-
-## Session Log
-| Date | Summary |
-|------|---------|
-| <today> | Initial setup |
-EOF
-
-# Create empty architecture.md
-touch doc/agent/architecture.md
-
-# Create empty findings.md
-touch doc/agent/findings.md
+3. [ ] Define plan
 ```
 
 ### 3.2 Explore Codebase
 
-Read and understand:
+Read and document in `doc/agent/architecture.md`:
 - Entry point / training script
-- Config files
+- Config files and key hyperparameters
 - Model architecture
-- Data loading
-- Evaluation code
-
-Document findings in `doc/agent/architecture.md`.
+- Data loading pipeline
+- Evaluation code and metrics
 
 ### 3.3 Create Plan in sketch.md
 
-Update `doc/agent/sketch.md` with:
+Update with:
 - Phases and steps
-- Success metrics
-- Key decisions
+- Success metric and target value
+- Baseline numbers (from paper, prior work)
+- Key decisions made
 
-**Planning Checklist:**
-- [ ] Understand codebase structure
-- [ ] Identify files to modify
-- [ ] Define success metrics
-- [ ] Plan ablations if needed
-- [ ] **ASK USER** about unclear implementation choices
-- [ ] Update sketch.md with complete plan
+**ASK USER** about unclear implementation choices before proceeding.
+
+---
 
 ## Step 4: Iterative Experiment Loop
 
 ```
-┌→ Setup Round → Run → Monitor/Early Stop → Analyze → Propose → ┐
-└────────────────────────────────────────────────────────────────┘
+┌→ 4.1 Setup Round → 4.2 Run → 4.3 Monitor → 4.4 Analyze → 4.5 Propose →┐
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### 4.0 Smoke Test (First Round Only)
@@ -246,23 +211,22 @@ Update `doc/agent/sketch.md` with:
 python train.py --epochs 1 --debug 2>&1 | tee logs/smoke_test.log
 ```
 
-**If fails:** Fix before entering the loop.
+Verify: imports resolve, data loads, forward/backward pass works, metrics compute, no OOM. Fix before entering loop.
 
 ### 4.1 Setup Round
 
 ```bash
-# Create sub-branch for this round
 git checkout autoresearch/<tag>
 git checkout -b autoresearch/<tag>-r<N>
 
 # Make changes, commit
 git add -A && git commit -m "r<N>: <hypothesis>"
 
-# Record rationale in git notes
+# Record rationale
 git notes add -m "Round <N>: <hypothesis>
 Changes from r<N-1>: <what changed>
-Motivation: <why this should work>
-Expected outcome: <what we hope to see>" HEAD
+Motivation: <why>
+Expected: <what we hope to see>" HEAD
 ```
 
 ### 4.2 Run
@@ -277,358 +241,200 @@ echo $! > logs/train.pid
 **Context-efficient monitoring (DO NOT use `tail -f`):**
 
 ```bash
-# Preferred: background monitor
+# Preferred: background monitor (only outputs on metric changes)
 ./scripts/monitor.sh --log logs/train_r<N>.log --pid $(cat logs/train.pid) --interval 120
 
 # Or sparse polling
 grep -E "(loss|epoch|val_)" logs/train_r<N>.log | tail -3
 ```
 
-**Early stopping heuristics — compare against baselines:**
+**Early stopping — compare against baselines (from findings.md):**
 
 | Training % | STOP if | CONTINUE if |
 |------------|---------|-------------|
 | First 100 steps | Loss NaN/Inf/increasing | Steady decrease |
-| ~5% | Loss >5x baseline | Within 2x baseline |
-| ~10% | Val metric flat or random | Trending up |
-| ~25% | Significantly below baseline | Comparable to baseline |
-| ~50% | Plateaued below baseline | On track |
+| ~5% | Loss >5x baseline at same point | Within 2x baseline |
+| ~10% | Val metric flat or random-level | Trending up |
+| ~25% | Significantly below baseline curve | Comparable |
+| ~50% | Plateaued well below baseline | On track |
 
-```bash
-# Compare current metrics vs baseline
-grep -E "val_" logs/train_r<N>.log | tail -3
-# vs
-cat doc/agent/findings.md | grep -A5 "Baseline"
-```
+### 4.4 Analyze
 
-### 4.4 Analyze (THINK before next round)
-
-**After completion OR early stop, do structured analysis:**
+**After completion OR early stop — THINK before next round:**
 
 ```bash
 # Record result
-echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<memory_gb>\t<status>\t<description>" >> results.tsv
 ```
 
-Write `doc/agent/exp_r<N>.md`:
+Write `doc/agent/exp_r<N>.md` (use `templates/exp_log.md.template`):
 
 ```markdown
 ## Round <N> Analysis
 
 ### Result
 - Status: [completed | early_stopped at epoch X/Y]
-- Metric: <value> (baseline: <value>, previous: <value>)
+- Metric: <value> (baseline: <value>, prev round: <value>)
 
 ### Diagnosis
-**If worse:** What went wrong? (optimization / data / architecture / bug?)
-**If better:** Which change drove it? Is it consistent?
+If worse → root cause? (optimization / data / architecture / bug?)
+If better → which change drove it?
 
-### Patterns Observed
-- <new patterns from this round>
+### Patterns
+- <new observations across rounds>
 
-### Proposed Next Round
-- Hypothesis: <what to try>
-- Changes: <specific modifications>
-- Expected outcome: <what we hope>
+### Proposed Next
+- Hypothesis: ...
+- Changes: ...
 ```
 
-Update `doc/agent/findings.md` with new patterns.
+Update `doc/agent/findings.md` with new patterns and baselines.
+
+**Systematic failure diagnosis:**
+1. **Optimization** — LR too high/low? Gradient issues? Wrong optimizer?
+2. **Data** — Preprocessing correct? Shuffling? Augmentation too aggressive?
+3. **Architecture** — Model capacity? Activation/normalization? Init?
+4. **Bug** — Shape mismatch? Wrong loss? Compare with reference impl
 
 ### 4.5 Propose & Loop
-
-**Decision after analysis:**
 
 | Outcome | Action |
 |---------|--------|
 | Target metric achieved | **Exit loop** → Step 5 |
-| Promising direction | **Continue** → push further in same direction |
-| Failed, have new hypothesis | **New round** → branch, modify, try again |
-| All hypotheses exhausted | **Exit loop** → report findings |
+| Promising, push further | **New round** in same direction |
+| Failed, new hypothesis | **New round** with different approach |
+| All hypotheses exhausted | **Exit loop** → Step 5 (report findings) |
 | User requests stop | **Exit loop** |
 
 ```bash
-# If successful, merge back
+# If successful round, merge back
+git checkout autoresearch/<tag> && git merge autoresearch/<tag>-r<N>
+
+# If failed, leave branch and go back
 git checkout autoresearch/<tag>
-git merge autoresearch/<tag>-r<N>
 
-# If failed, leave branch, return to base
-git checkout autoresearch/<tag>
-
-# Update sketch.md before next round
-# → Go to 4.1 for next round
+# Update sketch.md → Go to 4.1
 ```
 
-### Branch History After Multiple Rounds
+### Error Recovery
 
-```
-autoresearch/<tag>              (base)
-├── autoresearch/<tag>-r1       (baseline, merged ✓)
-├── autoresearch/<tag>-r2       (lr=1e-4, early stopped ✗)
-├── autoresearch/<tag>-r3       (lr=3e-4 + warmup, merged ✓)
-└── autoresearch/<tag>-r4       (+ augmentation, running...)
-```
+| Error | Recovery |
+|-------|----------|
+| Training crashes mid-run | Check logs, fix bug, re-run same round |
+| OOM | Reduce batch size, enable gradient checkpointing |
+| Disk full | Run `./scripts/cleanup.sh`, clear old checkpoints |
+| Git state corrupted | `git reflog` to find last good state |
+| Stale sketch.md | Check `git log --show-notes` for ground truth |
+| Job killed (SLURM timeout) | Adjust time limit, resume from checkpoint if available |
 
-### Record Results
+### Cross-Session Long-Running Jobs
 
-Append to `results.tsv` after every round:
+If training runs longer than a session:
+1. Update sketch.md with: phase=training, job ID, expected completion
+2. End session
+3. Next session: hook restores context, agent checks job status
+4. `squeue -j <id>` or `kill -0 $(cat logs/train.pid)` to verify
 
-```bash
-echo -e "<commit>\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
-```
-
-### Git Version Control During Execution
-
-```bash
-# Before changes
-git add -A && git commit -m "checkpoint: <description>"
-
-# Add implementation notes
-git notes add -m "Implementation detail: ..." HEAD
-
-# If experiment fails
-git reset --hard HEAD~1
-
-# If experiment succeeds, tag it
-git tag exp-<id>-success
-```
+---
 
 ## Step 5: Analyze Results & Report
 
-### Generate Report
-
-Use the experiment_report skill:
-
+Use the experiment report skill:
 ```
 /experiment_report
 ```
 
-Save report to `doc/agent/exp_<id>_report.md`
-
-### Report Contents
-
-1. **Motivation** - Hypothesis and context
-2. **Setup** - Full reproducibility details
-3. **Method** - What changed
-4. **Results** - Metrics, curves, qualitative observations
-5. **Analysis** - What worked, what didn't, next steps
-
-### Archive Artifacts
+Save to `doc/agent/final_report.md`. Include:
+1. **Motivation** — Hypothesis and context
+2. **Setup** — Full reproducibility details
+3. **Results** — All rounds summarized, best result highlighted
+4. **Analysis** — What worked, patterns, recommendations
 
 ```bash
-# Copy key outputs to doc/agent/
-cp outputs/best_checkpoint.pt doc/agent/
-cp logs/train.log doc/agent/
-
-# Commit final state
-git add -A && git commit -m "exp-<id>: <summary>"
-git notes add -m "Final metrics: <...>" HEAD
+# Final commit
+git add -A && git commit -m "experiment complete: <summary>"
+git notes add -m "Final: <best metric>, <N> rounds, <key finding>" HEAD
 ```
 
-## Context Management (Memory Preservation)
+---
 
-### Option A: Automatic via Hook (Recommended)
+## Context Management
 
-Install the SessionStart hook for automatic context restoration:
+**CLAUDE.md is the single source of truth for all context rules.**
 
-```bash
-# Copy hook to workspace
-mkdir -p <workspace>/.claude/hooks
-cp templates/hooks/restore-context.sh <workspace>/.claude/hooks/
-
-# Add to workspace settings (.claude/settings.json)
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/restore-context.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-**What the hook does:**
-- Fires on every session start (startup, resume, compact, clear)
-- Reads `doc/agent/sketch.md` and injects into context
-- Shows recent git history with notes
-- Shows recent results from `results.tsv`
-- Tells agent what triggered the restore
-
-**Matchers available:**
-| Matcher | When |
-|---------|------|
-| `startup` | New session |
-| `resume` | Resuming session |
-| `compact` | After context compaction |
-| `clear` | After /clear command |
-| `""` (empty) | All of the above |
-
-### Option B: Manual via CLAUDE.md
-
-If hooks aren't available, the CLAUDE.md template includes mandatory session protocols.
-
-### Memory Architecture
+Summary of the architecture:
 
 ```
-Layer 1: doc/agent/sketch.md      <- Current state, next steps (UPDATE EVERY SESSION)
-Layer 2: doc/agent/*.md           <- Architecture, findings, reports (APPEND AS NEEDED)
-Layer 3: git notes                <- Implementation details per commit
-Layer 4: results.tsv              <- Structured experiment outcomes
+doc/agent/sketch.md       ← Current state (updated frequently)
+doc/agent/architecture.md ← Design decisions (append as needed)
+doc/agent/findings.md     ← Patterns & baselines (append as needed)
+doc/agent/exp_r*.md       ← Per-round reports (one per round)
+git notes                 ← Implementation details (per commit)
+results.tsv               ← Metrics (append per round)
 ```
 
-### Session Start Procedure (MANDATORY)
+**Restoration:** SessionStart hook auto-injects sketch.md + recent history.
+**Updates:** Incremental triggers defined in CLAUDE.md.
 
-**Before doing any work, restore context:**
+### Sketch.md Size Management
 
-```bash
-# 1. Read current state
-cat doc/agent/sketch.md
+If sketch.md grows beyond ~100 lines:
+1. Move completed session log entries to `doc/agent/findings.md`
+2. Summarize old "Key Decisions" into architecture.md
+3. Keep sketch.md focused on: current state, next steps, open questions
 
-# 2. Recent history
-git log --oneline -5 --show-notes
-tail -5 results.tsv
-
-# 3. Confirm understanding
-# - Current phase: ___
-# - Last action: ___
-# - Next step: ___
-```
-
-**If anything is unclear, ASK USER before proceeding.**
-
-### Incremental Update Triggers
-
-**Update context files as you work, not just at session end:**
-
-| Trigger | Action |
-|---------|--------|
-| After significant action | Update sketch.md briefly |
-| After experiment completes | results.tsv + git notes |
-| After design decision | architecture.md |
-| After insight | findings.md |
-| Before risky change | git commit + sketch.md |
-| At session end | Full sketch.md update + commit |
-
-**Rule: If session crashes now, would the next session know what happened?**
-- If no → update context files now
-- If yes → continue working
-
-### What Goes Where
-
-| Content | Location | When Updated |
-|---------|----------|--------------|
-| Current state, next steps | `sketch.md` | Every session |
-| Design decisions | `architecture.md` | When decisions made |
-| Experiment reports | `exp_*.md` | After each experiment |
-| Accumulated insights | `findings.md` | After analysis |
-| Implementation details | `git notes` | Each commit |
-| Experiment metrics | `results.tsv` | After each run |
-
-## Critical Rules
-
-| Rule | Reason |
-|------|--------|
-| **Never modify source data** | Use symlinks, keep changes local |
-| **Two-level logging** | Core info in doc/, details in git notes |
-| **Version control before changes** | Easy rollback of failed experiments |
-| **Ask when unclear** | Better to clarify than waste compute |
-| **Wait for completion** | Results analysis needs final outputs |
-| **Update sketch.md every session** | Context preservation for multi-session work |
+---
 
 ## Workspace Cleanup
 
-### Cleanup Workflow
-
-```
-1. ARCHIVE successful experiments
-   └── ./scripts/archive-experiment.sh <exp_id>
-
-2. PRUNE by retention policy
-   └── ./scripts/cleanup.sh --dry-run  (preview)
-   └── ./scripts/cleanup.sh            (execute)
-
-3. VERIFY before delete
-   └── Script shows sizes and asks confirmation
-```
-
-### Install Scripts
-
 ```bash
-cp <skill_path>/templates/scripts/*.sh <workspace>/scripts/
-chmod +x <workspace>/scripts/*.sh
-```
-
-### Archive an Experiment
-
-```bash
-# Archive with best checkpoint only
-./scripts/archive-experiment.sh exp_001
-
-# Archive with all checkpoints
-./scripts/archive-experiment.sh exp_001 --include-all-checkpoints
-```
-
-Creates `archives/exp_001_20260317.tar.gz` containing:
-- Best/final checkpoint
-- Training log
-- Experiment report
-- Git commit info and notes
-- Config file
-- Results excerpt
-
-### Cleanup Workspace
-
-```bash
-# Preview what would be deleted
+# Preview
 ./scripts/cleanup.sh --dry-run
 
-# Run cleanup with prompts
+# Execute
 ./scripts/cleanup.sh
 
-# Force cleanup (no prompts)
-./scripts/cleanup.sh --force
-
-# Custom retention
-./scripts/cleanup.sh --keep-checkpoints 5 --keep-logs-days 60
+# Archive first
+./scripts/archive-experiment.sh <round_id>
 ```
 
-### Cleanup Policies
+| Item | Default | Protected |
+|------|---------|-----------|
+| Checkpoints | Keep last 3 | No |
+| Logs | Keep 30 days | No |
+| Git branches | Delete merged | No |
+| Context files | — | **Yes** |
+| Data symlink | — | **Yes** |
+| results.tsv | — | **Yes** |
 
-| Item | Default Policy | Flag |
-|------|----------------|------|
-| Checkpoints | Keep last 3 | `--keep-checkpoints N` |
-| Logs | Keep 30 days | `--keep-logs-days N` |
-| Git branches | Delete merged | automatic |
-| Python cache | Delete all | automatic |
-| Processed data | Ask user | prompted |
-| Context files | **Never delete** | protected |
-| Data symlink | **Never touch** | protected |
+---
 
-### What's Protected
+## Results Schema
 
-- `doc/agent/*` - All context files
-- `data` symlink - Source data reference
-- `results.tsv` - Experiment tracking
-- `CLAUDE.md` - Workspace instructions
-- Current git branch
+**Authoritative column definition** (all files must use these exact names):
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `commit` | string | Short git hash |
+| `metric` | float | Primary success metric value |
+| `memory_gb` | float | Peak GPU memory in GB |
+| `status` | enum | `success`, `early_stop`, `failed`, `baseline` |
+| `description` | string | What was tried |
+
+```bash
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<memory_gb>\t<status>\t<description>" >> results.tsv
+```
+
+---
 
 ## Quick Reference
 
 | Command | Purpose |
 |---------|---------|
-| `git checkout -b autoresearch/<tag>` | Create experiment branch |
-| `ln -s <path> data` | Symlink data (never copy) |
-| `cat doc/agent/sketch.md` | Restore context (session start) |
-| `git log --oneline -5 --show-notes` | Check recent history |
+| `cat doc/agent/sketch.md` | Check current state |
+| `git log --oneline -5 --show-notes` | Recent history |
+| `column -t -s $'\t' results.tsv` | View all results |
 | `git notes add -m "..." HEAD` | Add implementation details |
-| `git notes show HEAD` | View implementation details |
+| `./scripts/monitor.sh --log <f> --pid <p>` | Monitor training |
 | `./scripts/cleanup.sh --dry-run` | Preview cleanup |
 | `./scripts/archive-experiment.sh <id>` | Archive experiment |
-| `/experiment_report` | Generate experiment report |

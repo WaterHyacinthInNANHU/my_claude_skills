@@ -1,6 +1,6 @@
 # Auto Experiment Skill
 
-Automated experiment workflow for ML/AI research with structured planning, execution monitoring, and result analysis.
+Automated iterative experiment workflow for ML/AI research.
 
 ## Usage
 
@@ -19,30 +19,33 @@ Automated experiment workflow for ML/AI research with structured planning, execu
 
 ## Workflow
 
-1. **Confirm Inputs** - Verify paths, clarify instructions with user
-2. **Setup Workspace** - Create branch (`autoresearch/<tag>`), symlink data, init tracking
-3. **Plan Experiment** - Use `/planning-with-files:plan` for structured planning
-4. **Execute & Monitor** - Smoke test first, then full training with monitoring
-5. **Analyze & Report** - Use `/experiment_report` for final documentation
+1. **Confirm Inputs** — Verify paths, clarify instructions
+2. **Setup Workspace** — Branch, symlink data, install hooks/scripts
+3. **Plan** — Explore codebase, define baselines, create plan in sketch.md
+4. **Experiment Loop** — Setup round → Run → Monitor/Early stop → Analyze → Propose → Loop
+5. **Final Report** — Use `/experiment_report`
 
 ## Key Features
 
-- **Branch naming convention** from [Karpathy's autoresearch](https://github.com/karpathy/autoresearch)
-- **Two-level logging**: High-level to `doc/agent/`, details to git notes
-- **Data safety**: Symlinks only, never modify source data
-- **Version control**: Commit before changes, easy rollback
+- **Iterative loop** with per-round git branching (`autoresearch/<tag>-r1`, `-r2`, ...)
+- **Early stopping** heuristics comparing against baselines
+- **Context preservation** via SessionStart hook + incremental sketch.md updates
+- **Two-level logging**: doc/agent/ for high-level, git notes for implementation details
+- **Data safety**: Symlinks only, never modify source
 
-## Templates
+## File Organization
 
-| File | Purpose |
-|------|---------|
-| `CLAUDE.md.template` | Workspace instructions for agent |
-| `setup_checklist.md.template` | Initial setup verification |
-| `exp_log.md.template` | Per-experiment documentation |
-| `monitoring_guide.md` | Training monitoring reference |
-| `results.tsv.template` | Results tracking header |
+| File | Role |
+|------|------|
+| `SKILL.md` | Full workflow (Steps 1-5) — read first |
+| `CLAUDE.md.template` | Workspace agent instructions — single source of truth |
+| `templates/*.template` | Context file templates (sketch, architecture, findings, etc.) |
+| `templates/scripts/` | setup.sh, monitor.sh, cleanup.sh, archive-experiment.sh |
+| `templates/hooks/` | SessionStart context restoration hook |
+| `templates/experiment_loop.md` | Analysis guide and diagnosis checklist |
+| `templates/monitoring_guide.md` | Smoke test and execution reference |
 
 ## Integration
 
-- **Planning**: `/planning-with-files:plan`
 - **Reporting**: `/experiment_report`
+- **Cluster**: `/ucr_hpcc_cluster` (for SLURM jobs)

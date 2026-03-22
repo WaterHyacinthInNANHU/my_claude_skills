@@ -1,285 +1,205 @@
 # Experiment Workspace: {{TAG}}
 
-> Created: {{DATE}}
 > Branch: autoresearch/{{TAG}}
 > Instruction: {{INSTRUCTION}}
+> Success Metric: {{METRIC}}
+> Data: {{DATA_PATH}} (symlinked, NEVER modify)
 
 ---
 
-# MANDATORY SESSION PROTOCOL
+# SESSION PROTOCOL
 
-## YOU MUST DO THIS AT SESSION START
+## ON SESSION START (MANDATORY)
 
-**STOP. Before any work, execute these steps:**
+**STOP. Execute these before any work:**
 
-### Step 1: Read Current State
+### 1. Read current state
 ```bash
 cat doc/agent/sketch.md
 ```
 
-### Step 2: Check Recent History
+### 2. Check recent history
 ```bash
 git log --oneline -5 --show-notes
 tail -5 results.tsv
 ```
 
-### Step 3: State Your Understanding
+### 3. State your understanding aloud
+> "Phase: ___. Last completed: ___. Next step: ___."
 
-Write out loud:
-> "Current phase: ___. Last completed: ___. Next step: ___. Blockers: ___."
-
-### Step 4: Proceed or Clarify
-
-- If clear → proceed with next step
-- If unclear → **ASK USER** before doing anything
+### 4. If unclear → ASK USER. If clear → proceed.
 
 ---
 
 ## CONTEXT UPDATE TRIGGERS
 
-**Update context files incrementally, not just at session end:**
+**Update incrementally, not just at session end.**
 
 | When | Update What |
 |------|-------------|
-| **After each significant action** | sketch.md (brief) |
-| **After experiment completes** | results.tsv + sketch.md |
-| **After design decision** | architecture.md |
-| **After insight/finding** | findings.md |
-| **Before risky change** | git commit + sketch.md |
-| **At session end** | sketch.md (full state) |
+| After significant action | sketch.md (current state + next step) |
+| After experiment round | results.tsv + exp_r\<N\>.md + sketch.md |
+| After design decision | architecture.md |
+| After insight/pattern found | findings.md |
+| Before risky change | `git commit` + sketch.md |
+| At session end | sketch.md (full state) + `git add doc/agent/ && git commit` |
+
+**Heuristic: If session crashes now, would the next session know what happened?**
+- No → update context now
+- Yes → keep working
 
 ---
 
-## UPDATE PROCEDURES
+## CONTEXT UPDATE PROCEDURES
 
-### Quick Update (after significant action)
-
-```bash
-# Update sketch.md "Current State" section
-# - Phase: ...
-# - Last action: <what you just did>
-# - Next step: ...
+### Quick Update (after any significant action)
+Edit sketch.md "Current State":
+```markdown
+- Phase: <current>
+- Last action: <what you just did>
+- Next step: <what's next>
 ```
 
-### After Experiment Completes
-
+### After Experiment Round
 ```bash
-# 1. Record result
-echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem_gb>\t<status>\t<description>" >> results.tsv
+# 1. Record result (use EXACT column names)
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<memory_gb>\t<status>\t<description>" >> results.tsv
 
-# 2. Add implementation notes
-git notes add -m "Experiment: <description>
+# 2. Implementation notes
+git notes add -m "Round <N>: <description>
 Result: <metric>
-What worked: ...
-What didn't: ..." HEAD
+What worked/didn't: ..." HEAD
 
-# 3. Update sketch.md with outcome
+# 3. Write doc/agent/exp_r<N>.md
+# 4. Update findings.md with new patterns
+# 5. Update sketch.md
 ```
 
 ### After Design Decision
-
-Update `doc/agent/architecture.md`:
+Append to `doc/agent/architecture.md`:
 ```markdown
 ### Decision: <title>
 **Context:** <problem>
-**Options:** <what was considered>
-**Decision:** <what was chosen>
+**Options:** <considered>
+**Decision:** <chosen>
 **Rationale:** <why>
 ```
 
 ### Before Risky Change
-
 ```bash
-# Checkpoint current state
 git add -A && git commit -m "checkpoint: before <risky thing>"
-
 # Update sketch.md with what you're about to try
 ```
 
 ### At Session End
-
 ```bash
-# 1. Full sketch.md update
-#    - Current phase
-#    - What was accomplished this session
-#    - Next steps (detailed)
-#    - Any blockers
-
-# 2. Commit all context
-git add doc/agent/
-git commit -m "session: <summary>"
+# Full sketch.md update: phase, accomplished, next steps, blockers
+git add doc/agent/ && git commit -m "session: <summary>"
 ```
 
 ---
 
 # CONTEXT FILES
 
-| File | Purpose | When to Update |
-|------|---------|----------------|
-| `doc/agent/sketch.md` | Current state, next steps | **Every session** |
+| File | Purpose | Updated |
+|------|---------|---------|
+| `doc/agent/sketch.md` | Current state & next steps | Frequently |
 | `doc/agent/architecture.md` | Design decisions | When decisions made |
-| `doc/agent/findings.md` | What works/doesn't | After analysis |
-| `doc/agent/exp_*.md` | Experiment reports | After each experiment |
-| `results.tsv` | Metrics tracking | After each run |
+| `doc/agent/findings.md` | Patterns, baselines, insights | After analysis |
+| `doc/agent/exp_r*.md` | Per-round analysis | After each round |
+| `results.tsv` | Metrics tracking | After each round |
 | `git notes` | Implementation details | Each commit |
+
+### Sketch.md Size Management
+If sketch.md exceeds ~100 lines:
+- Move old session log entries → findings.md
+- Move settled decisions → architecture.md
+- Keep only: current state, active experiment, next steps, open questions
 
 ---
 
-# EXPERIMENT EXECUTION: DO NOT STOP AFTER SUBMITTING
+# EXPERIMENT EXECUTION
 
-**Launching training is NOT the end of your task.**
+## Launching Is NOT Task Completion
 
-The workflow is: **Launch → Monitor → Analyze → Report**
+**The workflow is: Launch → Monitor → Analyze → Propose → Loop**
 
-## How to Monitor Without Wasting Context
+## Monitoring (Context-Efficient)
 
-**Option 1: Background monitor script (preferred)**
-
-```bash
-# Launch monitor as background task (uses run_in_background)
-./scripts/monitor.sh --log logs/train.log --interval 120 --pid <PID>
-
-# The script:
-# - Only outputs when metrics CHANGE (not every poll)
-# - Prints "MONITOR_DONE:<status>:<time>" when training ends
-# - You get notified automatically when it completes
-```
-
-**Option 2: Sparse polling (if no script)**
+**DO NOT use `tail -f` — it floods context.**
 
 ```bash
-# Do NOT tail -f (floods context)
-# Instead, check briefly every few minutes:
-tail -5 logs/train.log    # Just last 5 lines
+# Option 1: Background monitor (preferred — only outputs on metric changes)
+./scripts/monitor.sh --log logs/train_r<N>.log --pid $(cat logs/train.pid) --interval 120
 
-# Or extract only metrics:
-grep -E "(loss|epoch|val_)" logs/train.log | tail -3
-```
+# Option 2: Sparse polling
+grep -E "(loss|epoch|val_)" logs/train_r<N>.log | tail -3
 
-**Option 3: SLURM job check**
-
-```bash
-squeue -j <job_id> -h -o "%T %M"   # Just state and elapsed time
+# Option 3: SLURM
+squeue -j <job_id> -h -o "%T %M"
 ```
 
 ## Early Stopping Heuristics
 
-**Compare current run against baselines at checkpoints:**
+**Compare current run against baselines in findings.md:**
 
-| Training % | Bad Sign → STOP | Healthy Sign → CONTINUE |
-|------------|-----------------|-------------------------|
+| Training % | STOP if | CONTINUE if |
+|------------|---------|-------------|
 | First 100 steps | Loss NaN/Inf/increasing | Steady decrease |
 | ~5% | Loss >5x baseline at same point | Within 2x of baseline |
-| ~10% | Val metric flat or worse than random | Trending up, even slowly |
+| ~10% | Val metric flat or random-level | Trending up, even slowly |
 | ~25% | Significantly below baseline curve | Comparable to baseline |
 | ~50% | Plateaued well below baseline | On track to match/beat |
 
-**Compare with:**
 ```bash
-# Check baseline from findings.md
+# Compare current vs baseline
+grep -E "val_" logs/train_r<N>.log | tail -3
 cat doc/agent/findings.md | grep -A5 "Baseline"
-
-# Check previous successful round
-git notes show autoresearch/{{TAG}}-r<prev_success>
 ```
 
-## After Training Completes (or Early Stops)
+## After Round Completes (or Early Stops)
 
-**This is NOT the end. You are in a LOOP.**
+**You are in a LOOP. Do NOT stop here.**
 
-### Step 1: Record Result
-```bash
-echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
-```
+1. Record result in results.tsv
+2. Write analysis in doc/agent/exp_r\<N\>.md (diagnose why it worked/failed)
+3. Update findings.md with new patterns
+4. Propose next round (or exit loop if done)
+5. Update sketch.md
 
-### Step 2: Analyze (THINK before next experiment)
-
-Fill out in `doc/agent/exp_r<N>.md`:
-- **Result:** metric value, vs baseline, vs previous round
-- **Diagnosis:** root cause if failed/worse (optimization? data? architecture? bug?)
-- **What helped:** if improved, which change drove it
-- **Patterns:** recurring observations across rounds
-
-### Step 3: Update Findings
-Append new patterns to `doc/agent/findings.md`
-
-### Step 4: Propose Next Round
-Based on analysis, formulate:
-- Specific hypothesis
-- What to change
-- Expected outcome
-
-### Step 5: Launch Next Round
-```bash
-git checkout autoresearch/{{TAG}}
-git checkout -b autoresearch/{{TAG}}-r<N+1>
-# Make changes, commit, add git notes with hypothesis
-```
-
-### Loop Termination
-Stop iterating when:
-- Target metric achieved
-- All reasonable hypotheses exhausted
-- User requests stop
-- Resource budget exceeded
+**Exit loop when:** target achieved, hypotheses exhausted, or user stops.
 
 ---
 
 # RULES
 
-## Data Policy
-
-- **Source data:** {{DATA_PATH}}
-- **NEVER modify** files in `data/` directory (it's a symlink)
+## Data
+- Data is symlinked from: {{DATA_PATH}}
+- **NEVER modify** files in `data/`
 - Write outputs to: `outputs/processed_data/`
 
 ## Two-Level Logging
-
-**High-level (doc/agent/):**
-- Architecture decisions
-- Experiment reports
-- Key findings
-- What you'd tell another researcher
-
-**Implementation details (git notes):**
-- Debugging steps
-- Why specific approaches were chosen
-- What didn't work
-- Technical gotchas
+- **High-level** (doc/agent/): architecture, reports, findings — what you'd tell a researcher
+- **Implementation** (git notes): debugging, failed attempts, technical gotchas
 
 ## Version Control
-
 ```bash
 # Before significant changes
 git add -A && git commit -m "checkpoint: <description>"
 
-# After failed experiment
-git reset --hard HEAD~1
+# Per-round branching
+git checkout -b autoresearch/{{TAG}}-r<N>
 
-# After successful experiment
-git tag exp-<id>-success
+# After failed round
+git checkout autoresearch/{{TAG}}
+
+# After successful round
+git checkout autoresearch/{{TAG}} && git merge autoresearch/{{TAG}}-r<N>
 ```
 
----
-
-# QUICK REFERENCE
-
-```bash
-# Restore context
-cat doc/agent/sketch.md
-
-# Check history
-git log --oneline -5 --show-notes
-
-# Monitor training
-tail -f logs/train.log
-
-# View results
-column -t -s $'\t' results.tsv
-
-# Save implementation notes
-git notes add -m "..." HEAD
-```
+## Results Schema
+Columns: `commit`, `metric`, `memory_gb`, `status`, `description`
+Status values: `success`, `early_stop`, `failed`, `baseline`
 
 ---
 
@@ -290,3 +210,13 @@ git notes add -m "..." HEAD
 | Training script | {{TRAIN_SCRIPT}} |
 | Config | {{CONFIG_PATH}} |
 | Evaluation | {{EVAL_SCRIPT}} |
+
+# QUICK REFERENCE
+
+```bash
+cat doc/agent/sketch.md                          # Current state
+git log --oneline -5 --show-notes                # Recent history
+column -t -s $'\t' results.tsv                   # All results
+git notes add -m "..." HEAD                      # Save impl details
+./scripts/monitor.sh --log <f> --pid <p>         # Monitor training
+```

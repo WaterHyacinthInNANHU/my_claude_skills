@@ -1,94 +1,64 @@
 # Auto Experiment Skill Configuration
 
-# Skill metadata
 name: auto_experiment
-version: "1.0.0"
-description: Automated experiment workflow with planning, execution, and reporting
+version: "2.0.0"
+description: Automated iterative experiment workflow with planning, execution, and reporting
 
-# Default workspace structure
-workspace_structure:
-  directories:
-    - code
-    - outputs
-    - outputs/checkpoints
-    - outputs/processed_data
-    - logs
-    - doc
-    - doc/agent
+# Workspace structure
+workspace_dirs:
+  - code
+  - outputs
+  - outputs/checkpoints
+  - outputs/processed_data
+  - logs
+  - doc/agent
+  - scripts
+  - .claude/hooks
 
 # Branch naming
 branch_pattern: "autoresearch/{tag}"
-tag_format: "{month}{day}"  # e.g., mar17
-tag_variants:
-  - "{tag}-{gpu}"      # e.g., mar17-gpu0
-  - "{tag}-ablation"   # e.g., mar17-ablation
-  - "{tag}-v{n}"       # e.g., mar17-v2
+round_pattern: "autoresearch/{tag}-r{n}"
 
-# Logging policy
-logging:
-  high_level:
-    location: "doc/agent/"
-    contents:
-      - architecture decisions
-      - important parameters
-      - experiment reports
-      - key findings
-  implementation:
-    method: "git notes"
-    contents:
-      - debugging steps
-      - implementation choices
-      - failed approaches
-      - dependency issues
+# Experiment ID convention: r1, r2, r3, ...
+# Branch:  autoresearch/<tag>-r<N>
+# Log:     logs/train_r<N>.log
+# Report:  doc/agent/exp_r<N>.md
 
-# Results tracking
+# Results schema (authoritative definition)
 results_file: "results.tsv"
 results_columns:
-  - commit
-  - metric
-  - memory_gb
-  - status
-  - description
+  - name: commit
+    type: string
+    description: Short git hash
+  - name: metric
+    type: float
+    description: Primary success metric value
+  - name: memory_gb
+    type: float
+    description: Peak GPU memory in GB
+  - name: status
+    type: enum
+    values: [success, early_stop, failed, baseline]
+  - name: description
+    type: string
+    description: What was tried
 
-# Execution stages
-stages:
-  smoke_test:
-    purpose: "Catch bugs before full training"
-    typical_duration: "1-5 minutes"
-    checks:
-      - imports resolve
-      - data loads
-      - forward pass works
-      - backward pass works
-      - metrics compute
+# Context files
+context:
+  primary: "doc/agent/sketch.md"
+  architecture: "doc/agent/architecture.md"
+  findings: "doc/agent/findings.md"
+  per_round: "doc/agent/exp_r*.md"
+  implementation: "git notes"
 
-  full_training:
-    purpose: "Complete experiment run"
-    monitoring:
-      - tail logs
-      - check GPU utilization
-      - watch memory usage
-    completion_indicators:
-      - "Training complete" in log
-      - final checkpoint saved
-      - exit code 0
-
-# Integration with other skills
+# Integration
 integrations:
   reporting: "experiment_report"
 
-# Context management (replaces planning-with-files)
-context_files:
-  primary: "doc/agent/sketch.md"      # Current state, next steps
-  architecture: "doc/agent/architecture.md"  # Design decisions
-  findings: "doc/agent/findings.md"   # What works/doesn't
-  experiments: "doc/agent/exp_*.md"   # Per-experiment reports
-  implementation: "git notes"         # Per-commit details
-
 # Safety rules
 rules:
-  - "Never modify source data"
-  - "Use symlinks for data"
+  - "Never modify source data (symlink only)"
   - "Commit before significant changes"
+  - "Update sketch.md incrementally"
   - "Ask user when unclear"
-  - "Wait for completion before analysis"
+  - "Monitor until completion, then analyze"
