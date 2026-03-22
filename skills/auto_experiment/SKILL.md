@@ -20,8 +20,14 @@ Automated experiment workflow that handles workspace setup, planning, execution 
 
 ```
 Step 1: Confirm Inputs → Step 2: Setup Workspace → Step 3: Plan Experiment
-    ↓
-Step 5: Analyze & Report ← Step 4: Execute & Monitor
+                                                          ↓
+Step 5: Final Report  ←──────── Step 4: Experiment Loop
+                                  ┌→ Setup Round (branch)
+                                  │→ Run (launch)
+                                  │→ Monitor (early stop?)
+                                  │→ Analyze (diagnose)
+                                  │→ Propose (next hypothesis)
+                                  └── Loop until target met
 ```
 
 ## Step 1: Confirm Inputs & Understand Instructions
@@ -227,87 +233,147 @@ Update `doc/agent/sketch.md` with:
 - [ ] **ASK USER** about unclear implementation choices
 - [ ] Update sketch.md with complete plan
 
-## Step 4: Execute & Monitor
+## Step 4: Iterative Experiment Loop
 
-### Stage 1: Smoke Test
+```
+┌→ Setup Round → Run → Monitor/Early Stop → Analyze → Propose → ┐
+└────────────────────────────────────────────────────────────────┘
+```
 
-Run a quick sanity check before full training:
+### 4.0 Smoke Test (First Round Only)
 
 ```bash
-# Short run to catch bugs
 python train.py --epochs 1 --debug 2>&1 | tee logs/smoke_test.log
-
-# Check for:
-# - Import errors
-# - Shape mismatches
-# - CUDA/memory errors
-# - Data loading issues
 ```
 
-**If smoke test fails:** Fix issues before proceeding.
+**If fails:** Fix before entering the loop.
 
-### Stage 2: Full Training
-
-**Launching training is NOT task completion. You MUST monitor and analyze.**
+### 4.1 Setup Round
 
 ```bash
-# Launch training
-nohup python train.py <args> > logs/train.log 2>&1 &
+# Create sub-branch for this round
+git checkout autoresearch/<tag>
+git checkout -b autoresearch/<tag>-r<N>
+
+# Make changes, commit
+git add -A && git commit -m "r<N>: <hypothesis>"
+
+# Record rationale in git notes
+git notes add -m "Round <N>: <hypothesis>
+Changes from r<N-1>: <what changed>
+Motivation: <why this should work>
+Expected outcome: <what we hope to see>" HEAD
+```
+
+### 4.2 Run
+
+```bash
+nohup python train.py <args> > logs/train_r<N>.log 2>&1 &
 echo $! > logs/train.pid
-
-# Or with SLURM
-sbatch job.sh
 ```
 
-### Monitoring (Context-Efficient)
+### 4.3 Monitor with Early Stopping
 
-**DO NOT use `tail -f` — it floods context with repetitive log lines.**
-
-**Option A: Background monitor script (preferred)**
+**Context-efficient monitoring (DO NOT use `tail -f`):**
 
 ```bash
-# Launch as background task
-./scripts/monitor.sh --log logs/train.log --pid $(cat logs/train.pid) --interval 120
+# Preferred: background monitor
+./scripts/monitor.sh --log logs/train_r<N>.log --pid $(cat logs/train.pid) --interval 120
 
-# Script only outputs when metrics CHANGE
-# Prints "MONITOR_DONE:<status>:<time>" when training ends
-# Agent gets notified automatically on completion
+# Or sparse polling
+grep -E "(loss|epoch|val_)" logs/train_r<N>.log | tail -3
 ```
 
-**Option B: Sparse manual polling**
+**Early stopping heuristics — compare against baselines:**
+
+| Training % | STOP if | CONTINUE if |
+|------------|---------|-------------|
+| First 100 steps | Loss NaN/Inf/increasing | Steady decrease |
+| ~5% | Loss >5x baseline | Within 2x baseline |
+| ~10% | Val metric flat or random | Trending up |
+| ~25% | Significantly below baseline | Comparable to baseline |
+| ~50% | Plateaued below baseline | On track |
 
 ```bash
-# Check ONLY key metrics, not full log
-grep -E "(loss|epoch|val_)" logs/train.log | tail -3
-
-# Or just last few lines
-tail -5 logs/train.log
-
-# SLURM: just state and time
-squeue -j <job_id> -h -o "%T %M"
+# Compare current metrics vs baseline
+grep -E "val_" logs/train_r<N>.log | tail -3
+# vs
+cat doc/agent/findings.md | grep -A5 "Baseline"
 ```
 
-**Why this matters:**
-- `tail -f` produces continuous output → fills context window fast
-- `monitor.sh` only prints on metric changes → minimal context usage
-- Background tasks don't consume context while waiting
+### 4.4 Analyze (THINK before next round)
 
-### After Training Completes
+**After completion OR early stop, do structured analysis:**
 
-**DO NOT STOP HERE. Continue with:**
-1. Check exit status
-2. Extract final metrics
-3. Update results.tsv
-4. Analyze results
-5. Write experiment report (`/experiment_report`)
-6. Update sketch.md
+```bash
+# Record result
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
+```
+
+Write `doc/agent/exp_r<N>.md`:
+
+```markdown
+## Round <N> Analysis
+
+### Result
+- Status: [completed | early_stopped at epoch X/Y]
+- Metric: <value> (baseline: <value>, previous: <value>)
+
+### Diagnosis
+**If worse:** What went wrong? (optimization / data / architecture / bug?)
+**If better:** Which change drove it? Is it consistent?
+
+### Patterns Observed
+- <new patterns from this round>
+
+### Proposed Next Round
+- Hypothesis: <what to try>
+- Changes: <specific modifications>
+- Expected outcome: <what we hope>
+```
+
+Update `doc/agent/findings.md` with new patterns.
+
+### 4.5 Propose & Loop
+
+**Decision after analysis:**
+
+| Outcome | Action |
+|---------|--------|
+| Target metric achieved | **Exit loop** → Step 5 |
+| Promising direction | **Continue** → push further in same direction |
+| Failed, have new hypothesis | **New round** → branch, modify, try again |
+| All hypotheses exhausted | **Exit loop** → report findings |
+| User requests stop | **Exit loop** |
+
+```bash
+# If successful, merge back
+git checkout autoresearch/<tag>
+git merge autoresearch/<tag>-r<N>
+
+# If failed, leave branch, return to base
+git checkout autoresearch/<tag>
+
+# Update sketch.md before next round
+# → Go to 4.1 for next round
+```
+
+### Branch History After Multiple Rounds
+
+```
+autoresearch/<tag>              (base)
+├── autoresearch/<tag>-r1       (baseline, merged ✓)
+├── autoresearch/<tag>-r2       (lr=1e-4, early stopped ✗)
+├── autoresearch/<tag>-r3       (lr=3e-4 + warmup, merged ✓)
+└── autoresearch/<tag>-r4       (+ augmentation, running...)
+```
 
 ### Record Results
 
-Append to `results.tsv`:
+Append to `results.tsv` after every round:
 
 ```bash
-echo -e "<commit>\t<metric>\t<status>\t<description>" >> results.tsv
+echo -e "<commit>\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
 ```
 
 ### Git Version Control During Execution

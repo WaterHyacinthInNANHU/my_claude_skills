@@ -162,17 +162,66 @@ grep -E "(loss|epoch|val_)" logs/train.log | tail -3
 squeue -j <job_id> -h -o "%T %M"   # Just state and elapsed time
 ```
 
-## After Training Completes
+## Early Stopping Heuristics
 
-**YOU MUST continue with:**
-1. Check exit status (success or error?)
-2. Extract final metrics
-3. Update results.tsv
-4. Analyze results
-5. Write experiment report
-6. Update sketch.md with findings
+**Compare current run against baselines at checkpoints:**
 
-**Only THEN is the experiment task complete.**
+| Training % | Bad Sign → STOP | Healthy Sign → CONTINUE |
+|------------|-----------------|-------------------------|
+| First 100 steps | Loss NaN/Inf/increasing | Steady decrease |
+| ~5% | Loss >5x baseline at same point | Within 2x of baseline |
+| ~10% | Val metric flat or worse than random | Trending up, even slowly |
+| ~25% | Significantly below baseline curve | Comparable to baseline |
+| ~50% | Plateaued well below baseline | On track to match/beat |
+
+**Compare with:**
+```bash
+# Check baseline from findings.md
+cat doc/agent/findings.md | grep -A5 "Baseline"
+
+# Check previous successful round
+git notes show autoresearch/{{TAG}}-r<prev_success>
+```
+
+## After Training Completes (or Early Stops)
+
+**This is NOT the end. You are in a LOOP.**
+
+### Step 1: Record Result
+```bash
+echo -e "$(git rev-parse --short HEAD)\t<metric>\t<mem>\t<status>\t<description>" >> results.tsv
+```
+
+### Step 2: Analyze (THINK before next experiment)
+
+Fill out in `doc/agent/exp_r<N>.md`:
+- **Result:** metric value, vs baseline, vs previous round
+- **Diagnosis:** root cause if failed/worse (optimization? data? architecture? bug?)
+- **What helped:** if improved, which change drove it
+- **Patterns:** recurring observations across rounds
+
+### Step 3: Update Findings
+Append new patterns to `doc/agent/findings.md`
+
+### Step 4: Propose Next Round
+Based on analysis, formulate:
+- Specific hypothesis
+- What to change
+- Expected outcome
+
+### Step 5: Launch Next Round
+```bash
+git checkout autoresearch/{{TAG}}
+git checkout -b autoresearch/{{TAG}}-r<N+1>
+# Make changes, commit, add git notes with hypothesis
+```
+
+### Loop Termination
+Stop iterating when:
+- Target metric achieved
+- All reasonable hypotheses exhausted
+- User requests stop
+- Resource budget exceeded
 
 ---
 
