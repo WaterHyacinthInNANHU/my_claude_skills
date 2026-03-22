@@ -125,6 +125,57 @@ git commit -m "session: <summary>"
 
 ---
 
+# EXPERIMENT EXECUTION: DO NOT STOP AFTER SUBMITTING
+
+**Launching training is NOT the end of your task.**
+
+The workflow is: **Launch → Monitor → Analyze → Report**
+
+## How to Monitor Without Wasting Context
+
+**Option 1: Background monitor script (preferred)**
+
+```bash
+# Launch monitor as background task (uses run_in_background)
+./scripts/monitor.sh --log logs/train.log --interval 120 --pid <PID>
+
+# The script:
+# - Only outputs when metrics CHANGE (not every poll)
+# - Prints "MONITOR_DONE:<status>:<time>" when training ends
+# - You get notified automatically when it completes
+```
+
+**Option 2: Sparse polling (if no script)**
+
+```bash
+# Do NOT tail -f (floods context)
+# Instead, check briefly every few minutes:
+tail -5 logs/train.log    # Just last 5 lines
+
+# Or extract only metrics:
+grep -E "(loss|epoch|val_)" logs/train.log | tail -3
+```
+
+**Option 3: SLURM job check**
+
+```bash
+squeue -j <job_id> -h -o "%T %M"   # Just state and elapsed time
+```
+
+## After Training Completes
+
+**YOU MUST continue with:**
+1. Check exit status (success or error?)
+2. Extract final metrics
+3. Update results.tsv
+4. Analyze results
+5. Write experiment report
+6. Update sketch.md with findings
+
+**Only THEN is the experiment task complete.**
+
+---
+
 # RULES
 
 ## Data Policy

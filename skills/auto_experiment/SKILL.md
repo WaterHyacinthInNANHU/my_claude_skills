@@ -248,29 +248,59 @@ python train.py --epochs 1 --debug 2>&1 | tee logs/smoke_test.log
 
 ### Stage 2: Full Training
 
+**Launching training is NOT task completion. You MUST monitor and analyze.**
+
 ```bash
-# Launch training with logging
+# Launch training
 nohup python train.py <args> > logs/train.log 2>&1 &
+echo $! > logs/train.pid
 
 # Or with SLURM
 sbatch job.sh
 ```
 
-### Monitoring
+### Monitoring (Context-Efficient)
+
+**DO NOT use `tail -f` — it floods context with repetitive log lines.**
+
+**Option A: Background monitor script (preferred)**
 
 ```bash
-# Tail logs
-tail -f logs/train.log
+# Launch as background task
+./scripts/monitor.sh --log logs/train.log --pid $(cat logs/train.pid) --interval 120
 
-# Check GPU usage
-nvidia-smi -l 5
-
-# Monitor SLURM job
-squeue -u $USER
-sacct -j <job_id> --format=JobID,State,Elapsed,MaxRSS
+# Script only outputs when metrics CHANGE
+# Prints "MONITOR_DONE:<status>:<time>" when training ends
+# Agent gets notified automatically on completion
 ```
 
-**Wait for completion** - Do not proceed until training finishes.
+**Option B: Sparse manual polling**
+
+```bash
+# Check ONLY key metrics, not full log
+grep -E "(loss|epoch|val_)" logs/train.log | tail -3
+
+# Or just last few lines
+tail -5 logs/train.log
+
+# SLURM: just state and time
+squeue -j <job_id> -h -o "%T %M"
+```
+
+**Why this matters:**
+- `tail -f` produces continuous output → fills context window fast
+- `monitor.sh` only prints on metric changes → minimal context usage
+- Background tasks don't consume context while waiting
+
+### After Training Completes
+
+**DO NOT STOP HERE. Continue with:**
+1. Check exit status
+2. Extract final metrics
+3. Update results.tsv
+4. Analyze results
+5. Write experiment report (`/experiment_report`)
+6. Update sketch.md
 
 ### Record Results
 
