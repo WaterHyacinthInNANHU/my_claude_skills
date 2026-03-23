@@ -163,10 +163,36 @@ Run `/topic_survey` logic on the idea's domain. This builds the shared knowledge
 - Adjacent areas that might intersect
 - Recent work (last 2-3 years)
 
-**Read the high-relevance papers** via AlphaXiv:
+#### Paper Discovery & Reading
+
+**Discover papers** using multiple search methods:
+
+```bash
+# Semantic Scholar — keyword search (sorted by citation count)
+curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<TOPIC_KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"
+
+# Semantic Scholar — recent papers
+curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<TOPIC_KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&year=2024-2026"
 ```
+
+```
+# Web search — broad sweep
+WebSearch: "<topic keywords>" survey OR review site:arxiv.org
+WebSearch: "<topic keywords>" state of the art 2025 2026 site:arxiv.org
+WebSearch: "<topic keywords>" benchmark comparison site:paperswithcode.com
+```
+
+**Read papers** via AlphaXiv (always try this first for any paper with an arXiv ID):
+
+```
+# Structured overview (fast, usually sufficient)
 WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md
+
+# Full text (if overview lacks detail)
+WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md
 ```
+
+If AlphaXiv returns 404, fall back to reading the PDF directly.
 
 **Write results to `doc/agent/survey_cache.md`:**
 
@@ -355,8 +381,11 @@ Each agent receives: seed idea card, survey cache, seed validation summary, user
 
 **2'. Targeted Search (agent-driven depth):**
 - Start from the survey cache (don't re-search papers already found)
-- Search for work specific to this direction's unique angle
-- Read key papers via AlphaXiv
+- Search for work specific to this direction's unique angle using:
+  - Semantic Scholar API (keyword search + citation graph traversal)
+  - Web search (arxiv.org, paperswithcode.com)
+  - Citation chains from papers already in cache
+- Read discovered papers via AlphaXiv (`https://alphaxiv.org/overview/{ID}.md`)
 - **The agent decides how deep to search:**
 
 | Situation | Search Depth |

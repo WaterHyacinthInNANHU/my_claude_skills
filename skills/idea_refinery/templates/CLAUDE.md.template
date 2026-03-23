@@ -110,6 +110,21 @@ git checkout -b ideate/{{TAG}}-dir-<merged_name>
 
 ---
 
+# PAPER DISCOVERY & READING
+
+**Discover papers** via:
+- Semantic Scholar API: `https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract`
+- Web search: `site:arxiv.org`, `site:paperswithcode.com`
+- Citation chains from papers already in survey cache
+
+**Read papers** via AlphaXiv (always try first for any arXiv paper):
+```
+WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md    # structured overview
+WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md         # full text fallback
+```
+
+---
+
 # CODE REPO INSPECTION
 
 For core papers that the idea builds on or competes with, agents are **encouraged to clone and inspect code repos** for deeper understanding:
