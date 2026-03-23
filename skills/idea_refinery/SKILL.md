@@ -165,34 +165,29 @@ Run `/topic_survey` logic on the idea's domain. This builds the shared knowledge
 
 #### Paper Discovery & Reading
 
-**Discover papers** using multiple search methods:
+Use the methods from `/paper_related_works` and `/topic_survey` for all paper operations.
 
-```bash
-# Semantic Scholar — keyword search (sorted by citation count)
-curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<TOPIC_KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"
+**Discover papers:**
 
-# Semantic Scholar — recent papers
-curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<TOPIC_KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&year=2024-2026"
-```
+| Method | When to Use | How |
+|--------|------------|-----|
+| Semantic Scholar API | Keyword search, citation graph | `curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"` |
+| Semantic Scholar (recent) | Find cutting-edge work | Same but add `&year=2024-2026` |
+| Semantic Scholar (citations) | Find successors of a paper | `.../paper/ArXiv:{ID}?fields=citations.title,citations.year,citations.authors,citations.externalIds,citations.citationCount` |
+| Web search | Broad sweep, surveys | `WebSearch: "<topic>" site:arxiv.org` |
+| Papers With Code | Find benchmarks, code | `WebSearch: "<topic>" site:paperswithcode.com` |
+| Citation chain | Trace research lineage | From papers already in cache, follow references + citing papers (see `/paper_related_works` Steps 3-4) |
 
-```
-# Web search — broad sweep
-WebSearch: "<topic keywords>" survey OR review site:arxiv.org
-WebSearch: "<topic keywords>" state of the art 2025 2026 site:arxiv.org
-WebSearch: "<topic keywords>" benchmark comparison site:paperswithcode.com
-```
-
-**Read papers** via AlphaXiv (always try this first for any paper with an arXiv ID):
+**Read papers** via AlphaXiv (always try first for any arXiv paper):
 
 ```
-# Structured overview (fast, usually sufficient)
-WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md
-
-# Full text (if overview lacks detail)
-WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md
+WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md    # structured overview (fast)
+WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md         # full text (if overview lacks detail)
 ```
 
 If AlphaXiv returns 404, fall back to reading the PDF directly.
+
+**For key papers** (foundations the idea builds on, main competitors): use `/paper_related_works` logic to map their predecessors and successors — this surfaces papers that keyword search misses.
 
 **Write results to `doc/agent/survey_cache.md`:**
 
@@ -381,11 +376,12 @@ Each agent receives: seed idea card, survey cache, seed validation summary, user
 
 **2'. Targeted Search (agent-driven depth):**
 - Start from the survey cache (don't re-search papers already found)
-- Search for work specific to this direction's unique angle using:
-  - Semantic Scholar API (keyword search + citation graph traversal)
+- Search for work specific to this direction using all discovery methods (see Phase 1 Step 2):
+  - Semantic Scholar API (keyword search + citation graph)
   - Web search (arxiv.org, paperswithcode.com)
-  - Citation chains from papers already in cache
-- Read discovered papers via AlphaXiv (`https://alphaxiv.org/overview/{ID}.md`)
+  - Citation chains from cached papers
+  - For key papers, run `/paper_related_works` logic to find predecessors/successors
+- Read all discovered papers via AlphaXiv first (`https://alphaxiv.org/overview/{ID}.md`)
 - **The agent decides how deep to search:**
 
 | Situation | Search Depth |

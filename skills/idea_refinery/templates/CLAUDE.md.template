@@ -112,10 +112,13 @@ git checkout -b ideate/{{TAG}}-dir-<merged_name>
 
 # PAPER DISCOVERY & READING
 
-**Discover papers** via:
-- Semantic Scholar API: `https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract`
+Use methods from `/paper_related_works` and `/topic_survey` for all paper operations.
+
+**Discover papers:**
+- Semantic Scholar API: keyword search (`/paper/search?query=...`) + citation graph (`/paper/ArXiv:{ID}?fields=citations...`)
 - Web search: `site:arxiv.org`, `site:paperswithcode.com`
 - Citation chains from papers already in survey cache
+- For key papers: run `/paper_related_works` logic to map predecessors + successors
 
 **Read papers** via AlphaXiv (always try first for any arXiv paper):
 ```
