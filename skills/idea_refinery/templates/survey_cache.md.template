@@ -1,0 +1,26 @@
+# Survey Cache
+
+> Workspace: {{TAG}}
+> Topic: {{TOPIC}}
+> Last updated: {{DATE}}
+
+## Sub-topics Identified
+
+| ID | Sub-topic | Paper Count | Relevance |
+|----|-----------|-------------|-----------|
+| | | | |
+
+## Paper List
+
+| # | Paper | Authors | Year | Citations | Sub-topic | Relevance | Direction | Read? |
+|---|-------|---------|------|-----------|-----------|-----------|-----------|-------|
+| | | | | | | | seed | [ ] |
+
+## Key Takeaways
+
+-
+
+---
+
+*Direction column: "seed" = found during initial survey, "dir-A" = found during direction A evaluation, etc.*
+*Update this file as new papers are found. Never remove entries — mark relevance down instead.*

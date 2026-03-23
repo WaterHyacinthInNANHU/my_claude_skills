@@ -1,0 +1,89 @@
+# Idea Refinery Sketch
+
+> Workspace: {{TAG}}
+> Last updated: {{DATE}}
+
+## Current State
+
+- **Phase:** [seed / surveying / validating / branching / refining / converging / done]
+- **Iteration:** 0
+- **Current idea version:** v0
+- **Last action:**
+- **Blocking issues:** None
+
+## Seed Idea
+
+{{IDEA}}
+
+## Constraints
+
+- **Goal:** {{GOAL}}
+- **Compute:** {{COMPUTE}}
+- **Time:** {{DEADLINE}}
+- **Data:** {{DATA}}
+- **Team:** {{TEAM}}
+
+## Current Best Idea
+
+**Version:** v0 (seed)
+**Description:** {{IDEA}}
+**Validation:** not yet validated
+
+## Active Directions
+
+| ID | Direction | Status | Score | Notes |
+|----|-----------|--------|-------|-------|
+| | | | | |
+
+## Key Decisions Made
+
+| Decision | Rationale | Date |
+|----------|-----------|------|
+| | | |
+
+## Progress
+
+### Phase 1: Seed
+- [ ] Idea + constraints captured (Step 1)
+- [ ] Initial topic survey complete (Step 2)
+- [ ] Seed idea validated (Step 3)
+- [ ] Refinement directions proposed (Step 4)
+
+### Phase 2: Branch & Refine
+- [ ] Iteration 1: directions evaluated in parallel
+- [ ] Iteration 1: best direction selected → v1
+- [ ] Iteration 2: sub-refinements evaluated (if needed)
+- [ ] Convergence reached
+
+### Phase 3: Converge
+- [ ] Exploration summary written
+- [ ] Final proposal document written
+- [ ] Final commit
+
+## Next Steps
+
+1. [ ] <immediate next action>
+2. [ ]
+3. [ ]
+
+## Open Questions
+
+-
+
+## Session Log
+
+| Date | Session Summary |
+|------|-----------------|
+| {{DATE}} | Initial setup |
+
+---
+
+## Quick Pointers
+
+- **Survey cache:** `doc/agent/survey_cache.md`
+- **Idea evolution:** `doc/agent/idea_versions/`
+- **Direction reports:** `doc/agent/directions/`
+- **Validation reports:** `doc/agent/validations/`
+- **Accumulated insights:** `doc/agent/findings.md`
+- **Design decisions:** `doc/agent/decisions.md`
+- **Implementation details:** `git notes show <commit>`

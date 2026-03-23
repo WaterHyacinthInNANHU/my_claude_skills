@@ -1,0 +1,160 @@
+# Idea Refinery Workspace: {{TAG}}
+
+> Seed Idea: {{IDEA}}
+> Branch: ideate/{{TAG}}
+> Created: {{DATE}}
+
+---
+
+# SESSION PROTOCOL
+
+## ON SESSION START (MANDATORY)
+
+**STOP. Execute these before any work:**
+
+### 1. Read current state
+```bash
+cat doc/agent/sketch.md
+```
+
+### 2. Check branch and recent history
+```bash
+git branch --show-current
+git log --oneline -10 --show-notes --all
+```
+
+### 3. Check latest idea version
+```bash
+ls -t doc/agent/idea_versions/ | head -1 | xargs -I{} cat doc/agent/idea_versions/{}
+```
+
+### 4. State your understanding aloud
+> "Phase: ___. Current idea version: ___. Last action: ___. Next step: ___."
+
+### 5. If unclear → ASK USER. If clear → proceed.
+
+---
+
+## CONTEXT UPDATE TRIGGERS
+
+| When | Update What |
+|------|-------------|
+| After survey finds papers | survey_cache.md (append papers) |
+| After validating an idea | idea_versions/v\<N\>.md + sketch.md |
+| After evaluating a direction | directions/dir_\<name\>.md + sketch.md |
+| After direction decision | decisions.md + sketch.md |
+| After insight/pattern found | findings.md |
+| Before risky pivot | `git commit` + sketch.md |
+| At session end | sketch.md (full state) + `git add doc/agent/ && git commit` |
+
+**Heuristic: If session crashes now, would the next session know what happened?**
+- No → update context now
+- Yes → keep working
+
+---
+
+# GIT WORKFLOW
+
+## Branch Strategy
+
+```
+ideate/{{TAG}}              ← main idea branch (best version lives here)
+├── ideate/{{TAG}}-v1       ← first refinement
+├── ideate/{{TAG}}-v2       ← second refinement
+├── ideate/{{TAG}}-dir-A    ← direction A exploration
+├── ideate/{{TAG}}-dir-B    ← direction B exploration
+└── ideate/{{TAG}}-dir-C    ← direction C exploration
+```
+
+## Version Control Operations
+
+```bash
+# Before exploring a new direction
+git checkout ideate/{{TAG}}
+git checkout -b ideate/{{TAG}}-dir-<name>
+
+# After direction is evaluated
+git add doc/agent/ && git commit -m "dir-<name>: <verdict>"
+git notes add -m "Direction <name>: <summary>" HEAD
+
+# If direction is promising → merge back
+git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}-dir-<name>
+
+# If direction is dead end → leave branch, go back
+git checkout ideate/{{TAG}}
+
+# New idea version (after selecting best direction)
+git checkout ideate/{{TAG}}
+git checkout -b ideate/{{TAG}}-v<N>
+# ... refine ...
+git add -A && git commit -m "v<N>: <what changed>"
+git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}-v<N>
+
+# Checkpoint before risky decision
+git add -A && git commit -m "checkpoint: before <decision>"
+```
+
+Each idea version gets:
+- A card file: `doc/agent/idea_versions/v<N>_<slug>.md`
+- A git branch: `ideate/{{TAG}}-v<N>`
+- A git note on the merge commit summarizing the version
+
+## Merging Two Directions
+
+If user wants to combine aspects of multiple directions:
+```bash
+git checkout ideate/{{TAG}}
+git checkout -b ideate/{{TAG}}-dir-<merged_name>
+# Write merged idea, validate the combination, commit
+```
+
+---
+
+# CODE REPO INSPECTION
+
+For core papers that the idea builds on or competes with, agents are **encouraged to clone and inspect code repos** for deeper understanding:
+
+```bash
+# Clone to temp directory
+git clone <repo_url> /tmp/idea_refinery_<method_name>
+
+# Inspect training configs, model architecture, resource requirements
+# Look for: batch size, # GPUs, training time, dataset sizes, model params
+
+# Clean up when done
+rm -rf /tmp/idea_refinery_<method_name>
+```
+
+**When to clone:**
+- Estimating resource requirements (check training configs)
+- Understanding exact method details not clear from paper
+- Checking if existing code can be reused/adapted
+- Verifying that a claimed result is reproducible (check issues, code quality)
+
+---
+
+# CONTEXT FILES
+
+| File | Purpose | Updated |
+|------|---------|---------|
+| `doc/agent/sketch.md` | Current state & next steps | Frequently |
+| `doc/agent/survey_cache.md` | All papers found, shared across directions | After each search |
+| `doc/agent/idea_versions/v*.md` | Idea cards, one per version | After each refinement |
+| `doc/agent/directions/dir_*.md` | Direction evaluation reports | After each direction eval |
+| `doc/agent/validations/val_*.md` | Detailed validation reports | After each validation |
+| `doc/agent/findings.md` | Patterns, dead ends, insights | After analysis |
+| `doc/agent/decisions.md` | Direction and pivot decisions | After each decision |
+| `git notes` | Compact summaries on commits | Each commit |
+
+---
+
+# QUICK REFERENCE
+
+```bash
+cat doc/agent/sketch.md                          # Current state
+git log --oneline -10 --show-notes --all         # Recent history
+git branch -a | grep ideate/                     # All idea branches
+ls doc/agent/idea_versions/                      # All idea versions
+ls doc/agent/directions/                         # All direction reports
+grep -cE "^\| [0-9]" doc/agent/survey_cache.md   # Paper count
+```

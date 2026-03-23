@@ -1,0 +1,54 @@
+# Idea Card: v{{VERSION}}
+
+> Parent: v{{PARENT_VERSION}}
+> Direction: {{DIRECTION}}
+> Date: {{DATE}}
+> Branch: `ideate/{{TAG}}-v{{VERSION}}`
+
+## Idea
+
+{{DESCRIPTION}}
+
+## What Changed from v{{PARENT_VERSION}}
+
+{{DELTA}}
+
+## Validation Summary
+
+| Dimension | Rating | Notes |
+|-----------|--------|-------|
+| Novelty | | |
+| Theory | | |
+| Contribution | | |
+| Feasibility | | |
+| Risk | | |
+| **Overall** | | |
+
+## Key Supporting Papers
+
+| Paper | Relationship | Link |
+|-------|-------------|------|
+| | | |
+
+## Resource Estimate
+
+| Aspect | Estimate | Available | Feasible? |
+|--------|---------|-----------|-----------|
+| Compute | | | |
+| Data | | | |
+| Time | | | |
+| Engineering | | | |
+
+## Strengths
+
+-
+
+## Weaknesses
+
+-
+
+## Next Refinement Suggestions
+
+1.
+2.
+3.
