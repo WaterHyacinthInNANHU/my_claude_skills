@@ -16,7 +16,7 @@ WORKSPACE=""
 TAG=""
 IDEA=""
 DATE=$(date +%Y-%m-%d)
-SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SKILL_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
