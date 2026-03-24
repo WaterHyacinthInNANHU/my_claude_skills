@@ -10,33 +10,15 @@
 
 ## ON SESSION START (MANDATORY)
 
-**STOP. Execute these before any work:**
+**STOP. Execute before any work:**
 
-### 1. Read current state
 ```bash
-cat doc/agent/sketch.md
+python3 scripts/status.py
 ```
 
-### 2. Check branch and recent history
-```bash
-git branch --show-current
-git log --graph --oneline -15 --show-notes --all
-```
+Then state: "Phase: ___. Current version: ___. Last action: ___. Next step: ___."
 
-### 3. Check latest idea version
-```bash
-ls -t doc/agent/idea_versions/ | head -1 | xargs -I{} cat doc/agent/idea_versions/{}
-```
-
-### 4. Check reference DB
-```bash
-python3 scripts/refs.py stats
-```
-
-### 5. State your understanding aloud
-> "Phase: ___. Current idea version: ___. Last action: ___. Next step: ___."
-
-### 6. If unclear → ASK USER. If clear → proceed.
+If unclear -> ASK USER. If clear -> proceed.
 
 ---
 
@@ -54,8 +36,6 @@ python3 scripts/refs.py stats
 | At session end | sketch.md (full state) + `git add doc/agent/ refs.db && git commit` |
 
 **Heuristic: If session crashes now, would the next session know what happened?**
-- No → update context now
-- Yes → keep working
 
 ---
 
@@ -63,89 +43,48 @@ python3 scripts/refs.py stats
 
 ## Branch Strategy (Tree)
 
-User visualizes with `git log --graph --all --oneline` or git GUI extensions.
-
 ```
-ideate/{{TAG}}                 ← main branch (best version)
-├── ideate/{{TAG}}/A           ← direction A
-│   ├── ideate/{{TAG}}/A.1    ← sub-refinement
-│   └── ideate/{{TAG}}/A.2    ← another sub-refinement
-├── ideate/{{TAG}}/B           ← direction B
-└── ideate/{{TAG}}/C           ← direction C
+ideate/{{TAG}}                 <- main branch (best version)
++-- ideate/{{TAG}}/A           <- direction A
+|   +-- ideate/{{TAG}}/A.1    <- sub-refinement
++-- ideate/{{TAG}}/B
++-- ideate/{{TAG}}/C
 ```
 
 ## Commit Conventions
 
 Format: `<type>(<scope>): <what and why>`
 
-| Type | Example |
-|------|---------|
-| `seed` | `seed: hierarchical sim2real for bimanual manipulation` |
-| `survey` | `survey: found 15 papers on sim2real, 3 highly relevant` |
-| `validate` | `validate(A): novel ⬤⬤⬤⬤○, feasible ⬤⬤⬤○○` |
-| `direction` | `direction(A.1): add task-level domain randomization` |
-| `decide` | `decide: pursue A.1, park B (too expensive)` |
-| `dead-end` | `dead-end(A.2): per-joint DR infeasible — needs 8x A100` |
-| `refs` | `refs: added 5 papers on domain randomization` |
-| `converge` | `converge: final proposal — task-level DR + real finetuning` |
-| `checkpoint` | `checkpoint: before pivoting from A to B` |
-
-## Version Control Operations
-
-```bash
-# Explore a new direction
-git checkout ideate/{{TAG}}
-git checkout -b ideate/{{TAG}}/<dir_id>
-
-# After direction is evaluated
-git add doc/agent/ refs.db && git commit -m "validate(<dir_id>): <verdict>"
-
-# If promising → merge back
-git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}/<dir_id>
-
-# If dead end → leave branch, go back
-git checkout ideate/{{TAG}}
-
-# Checkpoint before risky decision
-git add -A && git commit -m "checkpoint: before <decision>"
-```
-
-## Merging Two Directions
-
-```bash
-git checkout ideate/{{TAG}}
-git checkout -b ideate/{{TAG}}/<merged_id>
-# Write merged idea, validate, commit
-```
+Types: `seed`, `survey`, `validate`, `direction`, `decide`, `dead-end`, `refs`, `converge`, `checkpoint`, `auto`
 
 ---
 
-# REFERENCE DATABASE
+# WORKSPACE FILES
 
-All papers stored in `refs.db` (SQLite + FTS5). **Never use markdown tables for paper tracking.**
+| File | Purpose |
+|------|---------|
+| `config.md` | Global constraints, eval weights, auto params |
+| `refs.db` | Paper database (SQLite + FTS5) |
+| `scripts/refs.py` | Reference DB CLI |
+| `scripts/status.py` | Compact status generator |
+| `doc/agent/sketch.md` | Current state & next steps |
+| `doc/agent/idea_versions/` | Idea cards, one per version |
+| `doc/agent/directions/` | Direction evaluation reports |
+| `doc/agent/validations/` | Detailed validation reports |
+| `doc/agent/findings.md` | Patterns, dead ends, insights |
+| `doc/agent/decisions.md` | Direction and pivot decisions |
+
+---
+
+# QUICK REFERENCE
 
 ```bash
-# Add a paper
-python3 scripts/refs.py add --title "..." --arxiv "..." --direction seed --relevance high --notes "..."
-
-# Search (full-text across title, abstract, notes)
-python3 scripts/refs.py search "diffusion policy 3D"
-
-# Get full details for one paper
-python3 scripts/refs.py get ze2025improved
-
-# Update after reading
-python3 scripts/refs.py update ze2025improved --read --append-notes "Key insight: ..."
-
-# Link paper to idea version
-python3 scripts/refs.py link A.1 ze2025improved builds_on --note "Core method"
-
-# List papers for a direction
-python3 scripts/refs.py list --direction A.1 --relevance high
-
-# Export
-python3 scripts/refs.py export-bib > references.bib
-python3 scripts/refs.py export-md > references.md
+python3 scripts/status.py                         # Full status + tree
+python3 scripts/status.py --tree-only              # Just the tree
+python3 scripts/refs.py search "query"             # Find papers
+python3 scripts/refs.py stats                      # Reference DB overview
+python3 scripts/refs.py links A.1                  # Papers for a version
+git log --graph --oneline -15 --show-notes --all   # Git history
 ```
 
 ---
@@ -154,7 +93,7 @@ python3 scripts/refs.py export-md > references.md
 
 Use methods from `/paper_related_works` and `/topic_survey`.
 
-**Discover:** Semantic Scholar API, web search, citation chains, `/paper_related_works` logic.
+**Discover:** Semantic Scholar API, web search, citation chains.
 
 **Read** via AlphaXiv (always try first):
 ```
@@ -163,44 +102,3 @@ WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md
 ```
 
 **Store** all papers in refs.db immediately after discovery.
-
----
-
-# CODE REPO INSPECTION
-
-Clone repos for resource estimation, implementation details, code reuse checks:
-
-```bash
-git clone <repo_url> /tmp/idea_refinery_<method>
-# Inspect training configs, model size, data pipeline
-rm -rf /tmp/idea_refinery_<method>
-```
-
----
-
-# CONTEXT FILES
-
-| File | Purpose | Updated |
-|------|---------|---------|
-| `refs.db` | Paper database (SQLite) | After each search/read |
-| `doc/agent/sketch.md` | Current state & next steps | Frequently |
-| `doc/agent/idea_versions/` | Idea cards, one per version | After each refinement |
-| `doc/agent/directions/` | Direction evaluation reports | After each direction eval |
-| `doc/agent/validations/` | Detailed validation reports | After each validation |
-| `doc/agent/findings.md` | Patterns, dead ends, insights | After analysis |
-| `doc/agent/decisions.md` | Direction and pivot decisions | After each decision |
-| `git notes` | Compact summaries on commits | Each commit |
-
----
-
-# QUICK REFERENCE
-
-```bash
-cat doc/agent/sketch.md                          # Current state
-git log --graph --oneline -15 --show-notes --all # Idea tree + history
-git branch -a | grep ideate/                     # All branches
-ls doc/agent/idea_versions/                      # All idea versions
-python3 scripts/refs.py stats                    # Reference DB overview
-python3 scripts/refs.py search "query"           # Find papers
-python3 scripts/refs.py links A.1                # Papers for a version
-```

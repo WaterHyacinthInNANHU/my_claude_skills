@@ -102,11 +102,23 @@ if [ -f "$CARD_SRC" ]; then
     echo "Created doc/agent/idea_versions/v0_seed.md"
 fi
 
+# Install config.md from template
+CONFIG_SRC="$SKILL_DIR/templates/config.md.template"
+if [ -f "$CONFIG_SRC" ]; then
+    fill_template "$CONFIG_SRC" "config.md"
+    echo "Created config.md"
+fi
+
 # Initialize reference database
 cp "$SKILL_DIR/templates/scripts/refs.py" scripts/refs.py
 chmod +x scripts/refs.py
 python3 scripts/refs.py --db refs.db init
 echo "Initialized refs.db"
+
+# Install status.py
+cp "$SKILL_DIR/templates/scripts/status.py" scripts/status.py
+chmod +x scripts/status.py
+echo "Installed scripts/status.py"
 
 # Install hooks
 cp "$SKILL_DIR/templates/hooks/restore-context.sh" .claude/hooks/
@@ -138,14 +150,15 @@ echo "=== Workspace ready ==="
 echo "  cd $WORKSPACE"
 echo "  Branch: ideate/$TAG"
 echo ""
-echo "Context files:"
-echo "  doc/agent/sketch.md          — Current state"
-echo "  doc/agent/survey_cache.md    — Paper cache"
-echo "  doc/agent/idea_versions/     — Idea card per version"
-echo "  doc/agent/directions/        — Direction evaluation reports"
-echo "  doc/agent/validations/       — Validation reports"
-echo "  doc/agent/findings.md        — Accumulated insights"
-echo "  doc/agent/decisions.md       — Decision log"
-echo "  doc/proposals/               — Final output documents"
-echo "  refs.db                      — Paper reference database (SQLite)"
-echo "  scripts/refs.py              — Reference DB CLI tool"
+echo "Files:"
+echo "  config.md                     — Global constraints & search params"
+echo "  refs.db                       — Paper reference database (SQLite)"
+echo "  scripts/refs.py               — Reference DB CLI"
+echo "  scripts/status.py             — Compact status generator"
+echo "  doc/agent/sketch.md           — Current state"
+echo "  doc/agent/idea_versions/      — Idea card per version"
+echo "  doc/agent/directions/         — Direction evaluation reports"
+echo "  doc/agent/validations/        — Validation reports"
+echo "  doc/agent/findings.md         — Accumulated insights"
+echo "  doc/agent/decisions.md        — Decision log"
+echo "  doc/proposals/                — Final output documents"

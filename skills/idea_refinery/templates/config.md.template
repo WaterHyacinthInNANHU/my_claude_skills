@@ -1,0 +1,41 @@
+# Idea Refinery Config: {{TAG}}
+
+## Resource Budget
+
+| Resource | Budget | Hard Limit? |
+|----------|--------|-------------|
+| GPUs | | no |
+| Training time | | no |
+| Wall-clock deadline | | no |
+| Data | | no |
+| Team size | | no |
+
+## Hard Constraints (auto-reject directions violating these)
+
+-
+
+## Soft Preferences (break ties between directions)
+
+-
+
+## Evaluation Weights
+
+Weights for computing weighted average scores. Default: equal (1.0 each).
+
+| Dimension | Weight |
+|-----------|--------|
+| Novelty | 1.0 |
+| Theory | 1.0 |
+| Contribution | 1.0 |
+| Feasibility | 1.0 |
+| Risk | 1.0 |
+
+## Auto Mode Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| strategy | best-first | best-first / BFS / DFS |
+| max_iterations | 5 | Max evaluate-propose cycles |
+| beam_width | 3 | Directions per iteration |
+| convergence_threshold | 4.0 | Min score for all dimensions |
+| max_depth | 3 | Max refinement depth from start |
