@@ -20,7 +20,7 @@ cat doc/agent/sketch.md
 ### 2. Check branch and recent history
 ```bash
 git branch --show-current
-git log --oneline -10 --show-notes --all
+git log --graph --oneline -15 --show-notes --all
 ```
 
 ### 3. Check latest idea version
@@ -28,10 +28,15 @@ git log --oneline -10 --show-notes --all
 ls -t doc/agent/idea_versions/ | head -1 | xargs -I{} cat doc/agent/idea_versions/{}
 ```
 
-### 4. State your understanding aloud
+### 4. Check reference DB
+```bash
+python3 scripts/refs.py stats
+```
+
+### 5. State your understanding aloud
 > "Phase: ___. Current idea version: ___. Last action: ___. Next step: ___."
 
-### 5. If unclear → ASK USER. If clear → proceed.
+### 6. If unclear → ASK USER. If clear → proceed.
 
 ---
 
@@ -39,13 +44,14 @@ ls -t doc/agent/idea_versions/ | head -1 | xargs -I{} cat doc/agent/idea_version
 
 | When | Update What |
 |------|-------------|
-| After survey finds papers | survey_cache.md (append papers) |
-| After validating an idea | idea_versions/v\<N\>.md + sketch.md |
-| After evaluating a direction | directions/dir_\<name\>.md + sketch.md |
-| After direction decision | decisions.md + sketch.md |
-| After insight/pattern found | findings.md |
+| After finding papers | `refs.db` via `scripts/refs.py add` |
+| After reading a paper | `refs.db` via `scripts/refs.py update --append-notes` |
+| After validating an idea | `idea_versions/`, `validations/`, `refs.db` links, sketch.md |
+| After evaluating a direction | `directions/`, sketch.md |
+| After direction decision | `decisions.md`, sketch.md |
+| After insight/pattern found | `findings.md` |
 | Before risky pivot | `git commit` + sketch.md |
-| At session end | sketch.md (full state) + `git add doc/agent/ && git commit` |
+| At session end | sketch.md (full state) + `git add doc/agent/ refs.db && git commit` |
 
 **Heuristic: If session crashes now, would the next session know what happened?**
 - No → update context now
@@ -55,99 +61,120 @@ ls -t doc/agent/idea_versions/ | head -1 | xargs -I{} cat doc/agent/idea_version
 
 # GIT WORKFLOW
 
-## Branch Strategy
+## Branch Strategy (Tree)
+
+User visualizes with `git log --graph --all --oneline` or git GUI extensions.
 
 ```
-ideate/{{TAG}}              ← main idea branch (best version lives here)
-├── ideate/{{TAG}}-v1       ← first refinement
-├── ideate/{{TAG}}-v2       ← second refinement
-├── ideate/{{TAG}}-dir-A    ← direction A exploration
-├── ideate/{{TAG}}-dir-B    ← direction B exploration
-└── ideate/{{TAG}}-dir-C    ← direction C exploration
+ideate/{{TAG}}                 ← main branch (best version)
+├── ideate/{{TAG}}/A           ← direction A
+│   ├── ideate/{{TAG}}/A.1    ← sub-refinement
+│   └── ideate/{{TAG}}/A.2    ← another sub-refinement
+├── ideate/{{TAG}}/B           ← direction B
+└── ideate/{{TAG}}/C           ← direction C
 ```
+
+## Commit Conventions
+
+Format: `<type>(<scope>): <what and why>`
+
+| Type | Example |
+|------|---------|
+| `seed` | `seed: hierarchical sim2real for bimanual manipulation` |
+| `survey` | `survey: found 15 papers on sim2real, 3 highly relevant` |
+| `validate` | `validate(A): novel ⬤⬤⬤⬤○, feasible ⬤⬤⬤○○` |
+| `direction` | `direction(A.1): add task-level domain randomization` |
+| `decide` | `decide: pursue A.1, park B (too expensive)` |
+| `dead-end` | `dead-end(A.2): per-joint DR infeasible — needs 8x A100` |
+| `refs` | `refs: added 5 papers on domain randomization` |
+| `converge` | `converge: final proposal — task-level DR + real finetuning` |
+| `checkpoint` | `checkpoint: before pivoting from A to B` |
 
 ## Version Control Operations
 
 ```bash
-# Before exploring a new direction
+# Explore a new direction
 git checkout ideate/{{TAG}}
-git checkout -b ideate/{{TAG}}-dir-<name>
+git checkout -b ideate/{{TAG}}/<dir_id>
 
 # After direction is evaluated
-git add doc/agent/ && git commit -m "dir-<name>: <verdict>"
-git notes add -m "Direction <name>: <summary>" HEAD
+git add doc/agent/ refs.db && git commit -m "validate(<dir_id>): <verdict>"
 
-# If direction is promising → merge back
-git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}-dir-<name>
+# If promising → merge back
+git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}/<dir_id>
 
-# If direction is dead end → leave branch, go back
+# If dead end → leave branch, go back
 git checkout ideate/{{TAG}}
-
-# New idea version (after selecting best direction)
-git checkout ideate/{{TAG}}
-git checkout -b ideate/{{TAG}}-v<N>
-# ... refine ...
-git add -A && git commit -m "v<N>: <what changed>"
-git checkout ideate/{{TAG}} && git merge ideate/{{TAG}}-v<N>
 
 # Checkpoint before risky decision
 git add -A && git commit -m "checkpoint: before <decision>"
 ```
 
-Each idea version gets:
-- A card file: `doc/agent/idea_versions/v<N>_<slug>.md`
-- A git branch: `ideate/{{TAG}}-v<N>`
-- A git note on the merge commit summarizing the version
-
 ## Merging Two Directions
 
-If user wants to combine aspects of multiple directions:
 ```bash
 git checkout ideate/{{TAG}}
-git checkout -b ideate/{{TAG}}-dir-<merged_name>
-# Write merged idea, validate the combination, commit
+git checkout -b ideate/{{TAG}}/<merged_id>
+# Write merged idea, validate, commit
+```
+
+---
+
+# REFERENCE DATABASE
+
+All papers stored in `refs.db` (SQLite + FTS5). **Never use markdown tables for paper tracking.**
+
+```bash
+# Add a paper
+python3 scripts/refs.py add --title "..." --arxiv "..." --direction seed --relevance high --notes "..."
+
+# Search (full-text across title, abstract, notes)
+python3 scripts/refs.py search "diffusion policy 3D"
+
+# Get full details for one paper
+python3 scripts/refs.py get ze2025improved
+
+# Update after reading
+python3 scripts/refs.py update ze2025improved --read --append-notes "Key insight: ..."
+
+# Link paper to idea version
+python3 scripts/refs.py link A.1 ze2025improved builds_on --note "Core method"
+
+# List papers for a direction
+python3 scripts/refs.py list --direction A.1 --relevance high
+
+# Export
+python3 scripts/refs.py export-bib > references.bib
+python3 scripts/refs.py export-md > references.md
 ```
 
 ---
 
 # PAPER DISCOVERY & READING
 
-Use methods from `/paper_related_works` and `/topic_survey` for all paper operations.
+Use methods from `/paper_related_works` and `/topic_survey`.
 
-**Discover papers:**
-- Semantic Scholar API: keyword search (`/paper/search?query=...`) + citation graph (`/paper/ArXiv:{ID}?fields=citations...`)
-- Web search: `site:arxiv.org`, `site:paperswithcode.com`
-- Citation chains from papers already in survey cache
-- For key papers: run `/paper_related_works` logic to map predecessors + successors
+**Discover:** Semantic Scholar API, web search, citation chains, `/paper_related_works` logic.
 
-**Read papers** via AlphaXiv (always try first for any arXiv paper):
+**Read** via AlphaXiv (always try first):
 ```
-WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md    # structured overview
-WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md         # full text fallback
+WebFetch: https://alphaxiv.org/overview/{PAPER_ID}.md
+WebFetch: https://alphaxiv.org/abs/{PAPER_ID}.md
 ```
+
+**Store** all papers in refs.db immediately after discovery.
 
 ---
 
 # CODE REPO INSPECTION
 
-For core papers that the idea builds on or competes with, agents are **encouraged to clone and inspect code repos** for deeper understanding:
+Clone repos for resource estimation, implementation details, code reuse checks:
 
 ```bash
-# Clone to temp directory
-git clone <repo_url> /tmp/idea_refinery_<method_name>
-
-# Inspect training configs, model architecture, resource requirements
-# Look for: batch size, # GPUs, training time, dataset sizes, model params
-
-# Clean up when done
-rm -rf /tmp/idea_refinery_<method_name>
+git clone <repo_url> /tmp/idea_refinery_<method>
+# Inspect training configs, model size, data pipeline
+rm -rf /tmp/idea_refinery_<method>
 ```
-
-**When to clone:**
-- Estimating resource requirements (check training configs)
-- Understanding exact method details not clear from paper
-- Checking if existing code can be reused/adapted
-- Verifying that a claimed result is reproducible (check issues, code quality)
 
 ---
 
@@ -155,11 +182,11 @@ rm -rf /tmp/idea_refinery_<method_name>
 
 | File | Purpose | Updated |
 |------|---------|---------|
+| `refs.db` | Paper database (SQLite) | After each search/read |
 | `doc/agent/sketch.md` | Current state & next steps | Frequently |
-| `doc/agent/survey_cache.md` | All papers found, shared across directions | After each search |
-| `doc/agent/idea_versions/v*.md` | Idea cards, one per version | After each refinement |
-| `doc/agent/directions/dir_*.md` | Direction evaluation reports | After each direction eval |
-| `doc/agent/validations/val_*.md` | Detailed validation reports | After each validation |
+| `doc/agent/idea_versions/` | Idea cards, one per version | After each refinement |
+| `doc/agent/directions/` | Direction evaluation reports | After each direction eval |
+| `doc/agent/validations/` | Detailed validation reports | After each validation |
 | `doc/agent/findings.md` | Patterns, dead ends, insights | After analysis |
 | `doc/agent/decisions.md` | Direction and pivot decisions | After each decision |
 | `git notes` | Compact summaries on commits | Each commit |
@@ -170,9 +197,10 @@ rm -rf /tmp/idea_refinery_<method_name>
 
 ```bash
 cat doc/agent/sketch.md                          # Current state
-git log --oneline -10 --show-notes --all         # Recent history
-git branch -a | grep ideate/                     # All idea branches
+git log --graph --oneline -15 --show-notes --all # Idea tree + history
+git branch -a | grep ideate/                     # All branches
 ls doc/agent/idea_versions/                      # All idea versions
-ls doc/agent/directions/                         # All direction reports
-grep -cE "^\| [0-9]" doc/agent/survey_cache.md   # Paper count
+python3 scripts/refs.py stats                    # Reference DB overview
+python3 scripts/refs.py search "query"           # Find papers
+python3 scripts/refs.py links A.1                # Papers for a version
 ```

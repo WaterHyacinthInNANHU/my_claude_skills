@@ -46,11 +46,13 @@ if [ -f "$SKETCH_FILE" ] && grep -q "Idea Refinery" "$SKETCH_FILE" 2>/dev/null; 
         echo ""
     fi
 
-    # Show survey cache stats (count rows starting with "| <number>")
-    CACHE_FILE="$CWD/doc/agent/survey_cache.md"
-    if [ -f "$CACHE_FILE" ]; then
-        PAPER_COUNT=$(grep -cE "^\| [0-9]" "$CACHE_FILE" 2>/dev/null || echo "0")
-        echo "## Survey Cache: $PAPER_COUNT papers"
+    # Show reference database stats
+    REFS_DB="$CWD/refs.db"
+    if [ -f "$REFS_DB" ]; then
+        echo "## Reference Database"
+        echo '```'
+        python3 "$CWD/scripts/refs.py" --db "$REFS_DB" stats 2>/dev/null || echo "refs.db exists but stats failed"
+        echo '```'
         echo ""
     fi
 

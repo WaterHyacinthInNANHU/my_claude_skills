@@ -34,7 +34,7 @@ echo "Workspace: $WORKSPACE"
 echo "Tag: $TAG"
 
 # Create directory structure
-mkdir -p "$WORKSPACE"/{doc/agent/{idea_versions,directions,validations},doc/proposals,.claude/hooks}
+mkdir -p "$WORKSPACE"/{doc/agent/{idea_versions,directions,validations},doc/proposals,scripts,.claude/hooks}
 
 # Initialize git
 cd "$WORKSPACE"
@@ -69,11 +69,10 @@ fill_template() {
 }
 
 # Install context files from templates
-for tmpl in sketch survey_cache findings decisions; do
+for tmpl in sketch findings decisions; do
     SRC="$SKILL_DIR/templates/${tmpl}.md.template"
     case $tmpl in
         sketch)       DEST="doc/agent/sketch.md" ;;
-        survey_cache) DEST="doc/agent/survey_cache.md" ;;
         findings)     DEST="doc/agent/findings.md" ;;
         decisions)    DEST="doc/agent/decisions.md" ;;
     esac
@@ -102,6 +101,12 @@ if [ -f "$CARD_SRC" ]; then
         }' "$CARD_SRC" > "doc/agent/idea_versions/v0_seed.md"
     echo "Created doc/agent/idea_versions/v0_seed.md"
 fi
+
+# Initialize reference database
+cp "$SKILL_DIR/templates/scripts/refs.py" scripts/refs.py
+chmod +x scripts/refs.py
+python3 scripts/refs.py --db refs.db init
+echo "Initialized refs.db"
 
 # Install hooks
 cp "$SKILL_DIR/templates/hooks/restore-context.sh" .claude/hooks/
@@ -142,3 +147,5 @@ echo "  doc/agent/validations/       — Validation reports"
 echo "  doc/agent/findings.md        — Accumulated insights"
 echo "  doc/agent/decisions.md       — Decision log"
 echo "  doc/proposals/               — Final output documents"
+echo "  refs.db                      — Paper reference database (SQLite)"
+echo "  scripts/refs.py              — Reference DB CLI tool"

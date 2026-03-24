@@ -91,10 +91,11 @@ bash <skill_path>/templates/scripts/setup.sh \
 
 ```
 <workspace>/
+├── refs.db                       ← Paper reference database (SQLite + FTS5)
+├── scripts/refs.py               ← Reference DB CLI tool
 ├── doc/
 │   ├── agent/                    ← Agent working memory
 │   │   ├── sketch.md             ← Current state & next steps (updated frequently)
-│   │   ├── survey_cache.md       ← All papers found, shared across directions
 │   │   ├── findings.md           ← Accumulated insights & dead ends
 │   │   ├── decisions.md          ← Direction and pivot decisions
 │   │   ├── idea_versions/        ← One idea card per version
@@ -108,23 +109,52 @@ bash <skill_path>/templates/scripts/setup.sh \
 
 ### Git Branch Strategy
 
+Branches form a **tree** — the user can visualize with `git log --graph --all --oneline` or any git graph GUI extension.
+
 ```
-ideate/<tag>                      ← main branch (best idea version)
-├── ideate/<tag>-dir-<name>       ← direction exploration branches
-└── ideate/<tag>-v<N>             ← version refinement branches
+ideate/<tag>                      ← main branch (best idea version lives here)
+├── ideate/<tag>/A                ← direction A
+│   ├── ideate/<tag>/A.1          ← sub-refinement of A
+│   └── ideate/<tag>/A.2          ← another sub-refinement
+├── ideate/<tag>/B                ← direction B
+└── ideate/<tag>/C                ← direction C
 ```
 
 | Action | Git Command |
 |--------|------------|
-| Explore a direction | `git checkout -b ideate/<tag>-dir-<name>` |
-| Direction is promising | `git checkout ideate/<tag> && git merge ideate/<tag>-dir-<name>` |
+| Explore direction A | `git checkout -b ideate/<tag>/A` |
+| Sub-refine A | `git checkout -b ideate/<tag>/A.1` |
+| Direction is promising | `git checkout ideate/<tag> && git merge ideate/<tag>/A.1` |
 | Direction is dead end | `git checkout ideate/<tag>` (leave branch as record) |
-| New idea version | `git checkout -b ideate/<tag>-v<N>`, refine, merge back |
-| Checkpoint before pivot | `git commit -m "checkpoint: before <decision>"` |
+| Checkpoint | `git commit -m "checkpoint: before <decision>"` |
+
+### Git Commit Conventions
+
+Commits are the **primary record** of idea evolution. They must be self-explanatory since the user reads the git graph to understand progress.
+
+**Commit message format:** `<type>(<scope>): <what and why>`
+
+| Type | When | Example |
+|------|------|---------|
+| `seed` | Initial idea capture | `seed: hierarchical sim2real for bimanual manipulation` |
+| `survey` | Papers found/read | `survey: found 15 papers on sim2real transfer, 3 highly relevant` |
+| `validate` | Validation complete | `validate(A): novel ⬤⬤⬤⬤○, feasible ⬤⬤⬤○○ — needs compute reduction` |
+| `direction` | New direction proposed | `direction(A.1): add task-level domain randomization` |
+| `decide` | User chose a direction | `decide: pursue A.1 (task-level DR), park B (too expensive)` |
+| `refine` | Idea updated | `refine(A.1): add real-data finetuning phase — improves feasibility` |
+| `dead-end` | Direction abandoned | `dead-end(A.2): per-joint DR infeasible — requires 8x A100 for 48h` |
+| `converge` | Final proposal | `converge: final proposal — task-level DR + real finetuning` |
+| `refs` | Reference DB updated | `refs: added 5 papers on domain randomization (direction A.1)` |
+| `checkpoint` | Safety save | `checkpoint: before pivoting from approach A to B` |
+
+**Git notes** for details that don't fit in the message:
+```bash
+git notes add -m "Validation details: novelty gap is narrow vs. [ze2025idp3], key differentiator is ..." HEAD
+```
 
 ### Session Recovery
 
-The SessionStart hook auto-restores context: sketch.md, branches, latest idea card, survey cache size. If a session is interrupted, the next session picks up exactly where it left off.
+The SessionStart hook auto-restores context: sketch.md, branches, latest idea card, refs.db stats. If a session is interrupted, the next session picks up exactly where it left off.
 
 ---
 
@@ -189,19 +219,26 @@ If AlphaXiv returns 404, fall back to reading the PDF directly.
 
 **For key papers** (foundations the idea builds on, main competitors): use `/paper_related_works` logic to map their predecessors and successors — this surfaces papers that keyword search misses.
 
-**Write results to `doc/agent/survey_cache.md`:**
-
-```markdown
-| # | Paper | Year | Citations | Sub-topic | Relevance | Direction | Read? |
-|---|-------|------|-----------|-----------|-----------|-----------|-------|
-| 1 | [Title](https://arxiv.org/abs/...) | 2025 | 42 | <topic> | high | seed | [x] |
-```
-
-- `Direction` column: `seed` = initial survey, `dir-A` = found during direction A, etc.
-- Never remove entries — mark relevance down instead.
+**Store all papers in `refs.db`** (not markdown):
 
 ```bash
-git add doc/agent/survey_cache.md && git commit -m "survey: initial topic survey complete"
+# Add each discovered paper
+python3 scripts/refs.py add \
+  --title "Improved 3D Diffusion Policy" \
+  --authors "Ze, Yanjie and others" \
+  --year 2025 --arxiv "2401.12345" --venue "IROS" \
+  --direction seed --relevance high --read \
+  --notes "Core 3D visuomotor policy. Egocentric point clouds." \
+  --relationship "Foundation method we build on"
+
+# After reading a paper, update with notes
+python3 scripts/refs.py update ze2025improved \
+  --append-notes "Training: 4x A100 24h. Key insight: sparse point clouds sufficient." \
+  --resource-details "4x A100, 24h, RLBench dataset"
+```
+
+```bash
+git add refs.db && git commit -m "survey: found N papers on <topic>, M highly relevant"
 ```
 
 ### Step 3: Validate Seed Idea
@@ -322,8 +359,10 @@ If infeasible, identify what to scale down.
 ```bash
 # Save to doc/agent/validations/val_v0.md
 # Update idea card with validation scores
-git add doc/agent/ && git commit -m "validate: seed idea v0 assessed"
-git notes add -m "v0 validation: <overall rating>, key issues: <list>" HEAD
+# Link key papers to this idea version
+python3 scripts/refs.py link v0 ze2025improved builds_on --note "Core method we extend"
+git add doc/agent/ refs.db && git commit -m "validate(v0): <overall_rating> — <key_issues>"
+git notes add -m "Novelty: similar to X but differs in Y. Feasibility: tight on compute." HEAD
 ```
 
 ### Step 4: Propose Refinement Directions
@@ -395,6 +434,12 @@ Each agent receives: seed idea card, survey cache, seed validation summary, user
 
 **Proactively expand search** when validation reveals knowledge gaps or novelty is inconclusive. **Stop searching** when enough evidence exists for a confident judgment or the direction is clearly a dead end.
 
+All discovered papers go into `refs.db`:
+```bash
+python3 scripts/refs.py add --title "..." --direction A.1 --relevance high --notes "..."
+python3 scripts/refs.py search "relevant query"  # check what's already known
+```
+
 **3'. Validate Direction:**
 - Run the full validation checklist (3a-3f) on the refined idea
 - Compare against the seed idea's validation: what improved, what got worse?
@@ -430,14 +475,15 @@ Each agent receives: seed idea card, survey cache, seed validation summary, user
 
 ### Rank & Select
 
-As each parallel agent returns, save its report and merge new papers into the survey cache:
+As each parallel agent returns, save its report and add new papers to refs.db:
 
 ```bash
-git checkout ideate/<tag>-dir-<name>
+git checkout ideate/<tag>/<dir_id>
 # Write to doc/agent/directions/dir_<name>.md
-# Append new papers to doc/agent/survey_cache.md
-git add doc/agent/ && git commit -m "dir-<name>: <verdict>"
-git notes add -m "Direction <name>: <verdict>, key finding: <summary>" HEAD
+# Add new papers: python3 scripts/refs.py add --direction <dir_id> ...
+# Link papers: python3 scripts/refs.py link <dir_id> <paper_id> <role>
+git add doc/agent/ refs.db && git commit -m "validate(<dir_id>): <verdict> — <1-line reason>"
+git notes add -m "Key finding: <summary>. Papers added: N." HEAD
 ```
 
 After all agents return, compile a ranking:
@@ -461,9 +507,9 @@ After all agents return, compile a ranking:
 
 If user wants to combine aspects of multiple directions:
 
-1. Create a new direction branch from main: `git checkout -b ideate/<tag>-dir-<merged_name>`
+1. Create a new branch from main: `git checkout -b ideate/<tag>/<merged_id>`
 2. Write a merged idea description combining the selected aspects
-3. Run validation on the merged idea (may need new targeted search for the combination)
+3. Run validation on the merged idea (may need new targeted search)
 4. The merged direction is treated as a new version candidate
 
 #### Record Decision
@@ -471,9 +517,9 @@ If user wants to combine aspects of multiple directions:
 ```bash
 # Append to doc/agent/decisions.md
 # Merge winning direction branch back to main
-git checkout ideate/<tag> && git merge ideate/<tag>-dir-<name>
-# Create new idea version card: doc/agent/idea_versions/v<N>_<slug>.md
-git add doc/agent/ && git commit -m "v<N>: <what changed from v<N-1>>"
+git checkout ideate/<tag> && git merge ideate/<tag>/<dir_id>
+# Create new idea version card
+git add doc/agent/ && git commit -m "decide: pursue <dir_id> (<1-line reason>)"
 ```
 
 ### Iterate
@@ -558,9 +604,13 @@ Save to `doc/proposals/<YYYY-MM-DD>_<idea_slug>.md`.
 ### Step 3: Save & Commit
 
 ```bash
+# Export references for the proposal
+python3 scripts/refs.py export-bib > doc/proposals/references.bib
+python3 scripts/refs.py export-md > doc/proposals/references.md
+
 # Final commit
-git add -A && git commit -m "ideate/<tag>: final proposal — <1-line summary>"
-git notes add -m "Final: <idea title>, <N> iterations, <M> papers, <overall score>" HEAD
+git add -A && git commit -m "converge: <final idea title> — <N> iterations, <M> papers reviewed"
+git notes add -m "Final validation: novelty ⬤⬤⬤⬤○, feasibility ⬤⬤⬤⬤⬤, ..." HEAD
 
 # Update sketch.md phase → done
 ```
@@ -582,9 +632,13 @@ git notes add -m "Final: <idea title>, <N> iterations, <M> papers, <overall scor
 | Start refinement | User gives idea → Phase 0 + Phase 1 |
 | Check current state | `cat doc/agent/sketch.md` |
 | Check latest idea version | `ls -t doc/agent/idea_versions/ \| head -1` |
-| See all branches explored | `git branch -a \| grep ideate/` |
-| Count papers in cache | `grep -c "^\| [0-9]" doc/agent/survey_cache.md` |
+| Visualize idea tree | `git log --graph --all --oneline` or git GUI |
+| Search papers | `python3 scripts/refs.py search "query"` |
+| List papers for a direction | `python3 scripts/refs.py list --direction A.1` |
+| Get paper details | `python3 scripts/refs.py get <paper_id>` |
+| Papers linked to idea | `python3 scripts/refs.py links A.1.2` |
+| DB stats | `python3 scripts/refs.py stats` |
+| Export to BibTeX | `python3 scripts/refs.py export-bib > refs.bib` |
 | Add constraint mid-process | User injects at any ASK USER checkpoint |
 | Skip to proposal | User says "good enough" at any checkpoint → Phase 3 |
-| Restart from different seed | New idea → back to Phase 1 Step 1 |
-| Reuse survey for new idea | Keep survey cache, re-run from Step 3 with new idea |
+| Reuse refs for new idea | Keep refs.db, re-run from Step 3 with new idea |
