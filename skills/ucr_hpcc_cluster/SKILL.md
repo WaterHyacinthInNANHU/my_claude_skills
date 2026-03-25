@@ -1,6 +1,6 @@
 ---
 name: ucr_hpcc_cluster
-description: Help users work with the UCR HPCC (High Performance Computing Center) cluster. Provides commands for connecting, submitting jobs, managing software, and handling data storage.
+description: Help users work with the UCR HPCC and BCOE department clusters. Provides commands for connecting, submitting jobs, managing software, and handling data storage.
 ---
 
 # ucr_hpcc_cluster
@@ -996,3 +996,235 @@ sinfo -N -p "$PARTITION" \
     --noheader 2>/dev/null
 ```
 Compare `Gres` (total) vs `GresUsed` (allocated). If `gpu:h100:4` and `gpu:h100:4(IDX:0-3)`, all H100s are taken even if node state is `mix`.
+
+---
+
+# BCOE Department Cluster (BCC)
+
+The BCOE (Bourns College of Engineering) cluster is a smaller department-managed cluster separate from the main UCR HPCC. **Detect which cluster you are on** by checking the hostname:
+
+```bash
+hostname   # "bcc" = BCOE cluster, otherwise likely HPCC
+```
+
+## Key Differences from HPCC
+
+| Feature | HPCC | BCOE (BCC) |
+|---------|------|------------|
+| Hostname | `cluster.hpcc.ucr.edu` | `bcc` |
+| Home path | `/rhome/username` | `/home/<dept>/username` (e.g. `/home/cemaj/myan035`) |
+| Bigdata storage | `/bigdata/labname/...` | Not available |
+| Scratch (`$SCRATCH`) | Available | Not available |
+| Module system | Rich (miniconda3, gcc, cuda, R, etc.) | Minimal (only `pmi/pmix-x86_64`) |
+| Default partition | `epyc` | `debug` |
+| Partitions | 10+ (epyc, short, gpu, highmem, preempt, etc.) | 3 (debug, batch, gpu) |
+| Slurm version | Recent | 21.08.0 |
+| OS | Rocky Linux 8 | Rocky Linux 8.10 |
+
+## BCOE Partitions
+
+| Partition | Nodes | CPUs/Node | RAM/Node | GPUs/Node | Max Time | Notes |
+|-----------|-------|-----------|----------|-----------|----------|-------|
+| `debug` (default) | node01 | 24 | 250 GB | 2x RTX 2080 Ti | 1 day | Quick tests |
+| `batch` | node04-09 (6 nodes) | 24 | 250 GB | 2x RTX 2080 Ti | 7 days | CPU + light GPU |
+| `gpu` | gpu01-03 (3 nodes) | 64 | 749 GB | 7x A6000 Ada | 3 days | Heavy GPU work |
+
+**GPU QoS limit:** Max 4 GPUs per user (`gpu_limit` QoS on `gpu` partition).
+
+## BCOE Hardware Summary
+
+| Node(s) | CPUs | RAM | GPUs | Features |
+|---------|------|-----|------|----------|
+| node01 | 24 (2×12 cores, HT) | 250 GB | 2x RTX 2080 Ti | `gpu,rtx2080ti` |
+| node04-09 | 24 (2×12 cores, HT) | 250 GB | 2x RTX 2080 Ti | `gpu,rtx2080ti` |
+| gpu01-03 | 64 (2×32 cores, HT) | 749 GB | 7x A6000 Ada | `gpu,a6000ada` |
+
+**Total GPUs:** 21x A6000 Ada (48 GB each) + 14x RTX 2080 Ti (11 GB each)
+
+## BCOE Connection
+
+```bash
+ssh username@bcc
+```
+
+## BCOE Interactive Jobs
+
+```bash
+# Default debug node (1-day max)
+srun --pty bash -l
+
+# Batch node for longer work
+srun -p batch -c 4 --mem=16GB -t 1-00:00:00 --pty bash -l
+
+# GPU node with A6000 Ada
+srun -p gpu --gres=gpu:1 -c 8 --mem=64GB -t 4:00:00 --pty bash -l
+
+# Batch node with RTX 2080 Ti
+srun -p batch --gres=gpu:1 -c 4 --mem=32GB -t 1-00:00:00 --pty bash -l
+```
+
+## BCOE Batch Jobs
+
+### SBATCH Template (CPU)
+
+```bash
+#!/bin/bash -l
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=1-00:00:00
+#SBATCH --job-name="my_job"
+#SBATCH -p batch
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+# No module system — use conda/uv directly
+conda activate myenv
+python my_script.py
+```
+
+### SBATCH Template (GPU)
+
+```bash
+#!/bin/bash -l
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name="gpu_job"
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+set -euo pipefail
+
+echo "Node: $(hostname) | GPU: $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null)"
+echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+
+conda activate myenv
+python train.py
+```
+
+## BCOE Software Environment
+
+The BCOE cluster has a **minimal module system** — only `pmi/pmix-x86_64` is available. There are no modules for conda, gcc, cuda, R, etc. You must manage software yourself:
+
+### Python/Conda Setup
+
+Install miniconda or use uv directly:
+
+```bash
+# Option A: Install miniconda (one-time, on a compute node)
+srun -p batch -c 4 --mem=8GB -t 1:00:00 --pty bash -l
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
+~/miniconda3/bin/conda init bash
+source ~/.bashrc
+
+# Option B: Install uv (one-time)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### CUDA
+
+Check what CUDA is available system-wide:
+```bash
+ls /usr/local/cuda*
+nvcc --version
+nvidia-smi   # Shows driver version and max CUDA supported
+```
+
+If CUDA is not in PATH, add to `~/.bashrc`:
+```bash
+export PATH=/usr/local/cuda/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}
+```
+
+## BCOE Storage
+
+| Location | Path | Notes |
+|----------|------|-------|
+| Home | `/home/<dept>/username` | NFS-mounted, shared filesystem (~88 TB total) |
+| Temp | `/tmp` | Node-local |
+| RAM disk | `/dev/shm` | Uses job memory allocation |
+
+**No bigdata or scratch filesystems.** All project data lives under home. Monitor disk usage:
+```bash
+df -h ~
+du -sh ~/workspace/*
+```
+
+## BCOE Auto-Configuration
+
+**When on the BCOE cluster**, the auto-configured bash helpers should use BCOE-appropriate partitions. Add this block to `~/.bashrc` (separate from the HPCC helpers):
+
+```bash
+# ── BCOE Cluster Helpers ──────────────────────────────────────────────────
+
+# Launch Claude Code on compute node: ccn [hours]
+ccn() {
+    local hours="${1:-2}" dir="$(pwd)" partition="batch"
+    echo "Claude Code on $partition (${hours}h) | Exit: Ctrl+C then 'exit'"
+    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+}
+
+# Quick interactive node: node [hours] [partition]
+node() {
+    local hours="${1:-2}" partition="${2:-batch}"
+    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -l
+}
+
+# GPU interactive node: gpunode [hours]
+gpunode() {
+    local hours="${1:-4}"
+    srun -p gpu --gres=gpu:1 -c 8 --mem=64GB -t "${hours}:00:00" --pty bash -l
+}
+
+# Job monitoring aliases
+alias sq='squeue -u $USER -o "%.10i %.12j %.10P %.8T %.10M %.10l %.6C %.10m %R" --sort=-S'
+alias sqstart='squeue -u $USER --start -o "%.10i %.12j %.10P %.8T %.19S %.10l %R"'
+alias sqwatch='watch -n 5 "squeue -u $USER -o \"%.10i %.12j %.10P %.8T %.10M %.10l %.6C %R\""'
+alias sqgpu='squeue -p gpu -o "%.10i %.12j %.10P %.8u %.8T %.10M %b %R"'
+
+# GPU availability
+alias gpus='sinfo -p gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12,Partition:14" --noheader'
+
+# Job helpers
+eff() { seff "$1"; }
+joblog() { tail -f "${2:-logs}"/*_"$1".out 2>/dev/null || echo "Log not found"; }
+joberr() { tail -f "${2:-logs}"/*_"$1".err 2>/dev/null || echo "Log not found"; }
+
+# Login node cleanup
+alias mymem='ps -U $USER -o pid,rss:12,etime,comm --sort=-rss | head -15'
+
+# ── End BCOE Helpers ──────────────────────────────────────────────────────
+```
+
+## BCOE GPU Availability Check
+
+```bash
+# All nodes with GPU info
+sinfo -N -o "%N %G %c %m %f %T" --noheader
+
+# GPU partition availability
+sinfo -p gpu -O "NodeList:12,Gres:20,GresUsed:20,StateLong:12" --noheader
+
+# Pending GPU jobs
+squeue -p gpu --state=PENDING -o "%i %P %u %T %l %S %r" --noheader
+
+# Running GPU jobs (estimate when GPUs free up)
+squeue -p gpu --state=RUNNING -o "%i %P %N %u %M %l %b" --noheader
+```
+
+## BCOE Recommended GPU Job Settings
+
+To maximize concurrent GPU jobs (up to 4 per user):
+
+```bash
+--cpus-per-task=16 --mem=100G --gres=gpu:1 -p gpu
+```
+
+This allows 4 concurrent single-GPU jobs on the gpu partition (4 × 16 = 64 CPUs fits one node).

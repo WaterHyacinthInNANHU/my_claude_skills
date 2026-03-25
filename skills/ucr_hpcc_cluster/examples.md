@@ -524,3 +524,99 @@ python process.py --input large_input.dat --output results.dat
 # Copy results back
 cp results.dat /rhome/$USER/results/
 ```
+
+---
+
+## BCOE Cluster Examples
+
+### Example B1: GPU Training Job on BCOE
+
+**User Request:** "Train my model on the BCOE cluster GPU"
+
+```bash
+#!/bin/bash -l
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=3-00:00:00
+#SBATCH --job-name="train"
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+set -euo pipefail
+
+echo "Node: $(hostname) | GPU: $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null)"
+
+conda activate myenv
+python train.py --epochs 100
+```
+
+### Example B2: Interactive GPU Session on BCOE
+
+```bash
+# A6000 Ada on gpu partition (up to 3 days)
+srun -p gpu --gres=gpu:1 -c 8 --mem=64GB -t 4:00:00 --pty bash -l
+
+# RTX 2080 Ti on batch partition (up to 7 days, lighter GPU)
+srun -p batch --gres=gpu:1 -c 4 --mem=32GB -t 1-00:00:00 --pty bash -l
+```
+
+### Example B3: Setting Up Python on BCOE (No Modules)
+
+Since BCOE has no conda/python modules, install manually:
+
+```bash
+# Get a compute node first
+srun -p batch -c 4 --mem=8GB -t 1:00:00 --pty bash -l
+
+# Option A: Miniconda
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b -p $HOME/miniconda3
+~/miniconda3/bin/conda init bash
+source ~/.bashrc
+conda create -n myenv python=3.11
+conda activate myenv
+
+# Option B: uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+cd ~/workspace/my_project
+uv init && uv add torch numpy
+uv run python train.py
+```
+
+### Example B4: Self-Submit GPU Script on BCOE
+
+```bash
+#!/bin/bash -l
+#SBATCH --job-name="gpu_train"
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=100G
+#SBATCH --time=3-00:00:00
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
+
+set -euo pipefail
+
+# Self-submit when run directly
+if [ -z "${SLURM_JOB_ID:-}" ]; then
+    mkdir -p logs
+    echo "Submitting to gpu partition"
+    exec sbatch -p gpu --gres=gpu:1 "$0" "$@"
+fi
+
+echo "============================================"
+echo "  Job: $SLURM_JOB_NAME"
+echo "  Node:  $(hostname)"
+echo "  GPU:   $(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null || echo 'N/A')"
+echo "============================================"
+
+conda activate myenv
+python train.py "$@"
+```

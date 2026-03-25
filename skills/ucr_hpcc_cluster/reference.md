@@ -1,15 +1,31 @@
-# Reference: UCR HPCC Cluster Commands
+# Reference: UCR HPCC & BCOE Cluster Commands
 
 ## Cluster Information
+
+### UCR HPCC
 
 | Property | Value |
 |----------|-------|
 | SSH Host | `cluster.hpcc.ucr.edu` |
 | Job Scheduler | Slurm |
-| Module System | Environment Modules (Tcl) |
+| Module System | Environment Modules (Tcl, rich) |
 | Default Shell | bash |
 | Default Partition | epyc |
 | Web Access | Open OnDemand (JupyterHub, RStudio, VSCode) |
+
+### BCOE Department Cluster (BCC)
+
+| Property | Value |
+|----------|-------|
+| SSH Host | `bcc` |
+| Hostname | `bcc` |
+| Job Scheduler | Slurm 21.08.0 |
+| Module System | Minimal (only `pmi/pmix-x86_64`) |
+| Default Shell | bash |
+| Default Partition | `debug` |
+| Home Path | `/home/<dept>/username` (e.g. `/home/cemaj/myan035`) |
+| OS | Rocky Linux 8.10 |
+| Account | `jiachenli` |
 
 ---
 
@@ -351,3 +367,51 @@ Example:
 | `No module named pip` after `uv venv` | `uv venv` omits pip by default | Add `--seed` flag: `uv venv "$VENV" --seed` |
 | Auto GPU selects fully occupied GPUs | Node state `mix` ≠ free GPUs | Compare `Gres` vs `GresUsed` in `sinfo -O` output |
 | Vulkan not found / no ICD | Wrong ICD path | `export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.x86_64.json` (not `/etc/vulkan/icd.d/`) |
+
+---
+
+## BCOE Cluster Quick Reference
+
+### BCOE Partitions
+
+| Partition | Nodes | CPUs | RAM | GPUs | Max Time | Default Time |
+|-----------|-------|------|-----|------|----------|--------------|
+| `debug` (default) | node01 | 24 | 250 GB | 2x RTX 2080 Ti | 1 day | 20 min |
+| `batch` | node04-09 | 24 | 250 GB | 2x RTX 2080 Ti | 7 days | 3 days |
+| `gpu` | gpu01-03 | 64 | 749 GB | 7x A6000 Ada | 3 days | 3 days |
+
+### BCOE GPU Inventory
+
+| Node(s) | GPU Type | Count | VRAM | Partition | Features |
+|---------|----------|-------|------|-----------|----------|
+| gpu01-03 | NVIDIA A6000 Ada | 7 per node (21 total) | 48 GB | `gpu` | `gpu,a6000ada` |
+| node01 | NVIDIA RTX 2080 Ti | 2 | 11 GB | `debug` | `gpu,rtx2080ti` |
+| node04-09 | NVIDIA RTX 2080 Ti | 2 per node (12 total) | 11 GB | `batch` | `gpu,rtx2080ti` |
+
+### BCOE Resource Limits
+
+| Resource | Limit |
+|----------|-------|
+| GPUs per user (`gpu` partition) | 4 (via `gpu_limit` QoS) |
+| Max CPUs per node (`debug`/`batch`) | 24 |
+| Max CPUs per node (`gpu`) | 64 |
+| Max memory (`debug`/`batch`) | 224 GB |
+| Max memory (`gpu`) | 749 GB |
+
+### BCOE Storage
+
+| Location | Path | Notes |
+|----------|------|-------|
+| Home | `/home/<dept>/username` | NFS (crisnas1:/home), ~88 TB shared |
+| Temp | `/tmp` | Node-local |
+| RAM disk | `/dev/shm` | Uses job memory |
+
+No bigdata, no scratch, no `check_quota` — use `df -h ~` and `du -sh` instead.
+
+### BCOE vs HPCC: What's NOT Available
+
+- No `short`, `epyc`, `intel`, `highmem`, `highclock`, `preempt`, `preempt_gpu`, `short_gpu` partitions
+- No `module load miniconda3/anaconda/gcc/cuda/R` — install software manually
+- No `/bigdata`, no `$SCRATCH`, no `check_quota`, no `group_cpus`, no `slurm_limits`, no `jobMonitor`
+- No Open OnDemand web access
+- No `-A preempt` account
