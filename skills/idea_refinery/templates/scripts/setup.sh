@@ -34,7 +34,7 @@ echo "Workspace: $WORKSPACE"
 echo "Tag: $TAG"
 
 # Create directory structure
-mkdir -p "$WORKSPACE"/{doc/agent/{idea_versions,directions,validations},doc/proposals,scripts,.claude/hooks}
+mkdir -p "$WORKSPACE"/{doc/agent/{idea_versions,directions,validations},doc/{proposals,surveys},scripts,.claude/hooks}
 
 # Initialize git
 cd "$WORKSPACE"

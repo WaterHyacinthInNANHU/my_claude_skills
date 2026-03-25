@@ -179,8 +179,9 @@ Format: `<type>(<scope>): <what and why>`
 |   |   +-- idea_versions/        <- One idea card per version
 |   |   +-- directions/           <- Direction evaluation reports
 |   |   +-- validations/          <- Detailed validation reports
+|   +-- surveys/                  <- Topic survey documents (one per topic)
 |   +-- proposals/                <- User-facing output documents
-|   |   +-- evaluation.md        <- Accumulated evaluation history
+|   |   +-- evaluation.md        <- Current evaluation report
 |   |   +-- draft.md             <- Current proposal snapshot
 +-- CLAUDE.md                     <- Session protocol
 +-- .claude/hooks/                <- SessionStart context restoration

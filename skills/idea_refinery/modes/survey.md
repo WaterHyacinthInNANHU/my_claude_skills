@@ -101,14 +101,67 @@ cat README.md | grep -iA5 "training\|hardware\|gpu\|resource"
 rm -rf /tmp/idea_refinery_<method>
 ```
 
-### 7. Commit & Report
+### 7. Write Survey Document
+
+Write a user-readable survey to `doc/surveys/<topic_slug>.md`. Each survey is named by topic — multiple surveys can coexist (e.g., `sim2real_transfer.md`, `3d_representations.md`).
+
+```markdown
+# Survey: <Topic>
+
+> **Date:** <date>
+> **Scope:** <what was searched, how deep>
+> **Papers found:** N total, M highly relevant, K read
+> **Related idea version:** <current version>
+
+## Overview
+
+<2-3 paragraphs: what this research area is about, why it matters to our idea, key trends>
+
+## Key Papers
+
+| # | Paper | Year | Venue | Key Contribution | Relevance to Us |
+|---|-------|------|-------|-----------------|----------------|
+| 1 | [Title](link) | 2025 | ... | ... | ... |
+| 2 | ... | ... | ... | ... | ... |
+
+## Landscape
+
+### <Sub-topic A>
+<1-2 paragraphs: what this line of work does, main papers, state of the art>
+
+### <Sub-topic B>
+...
+
+## Gaps & Opportunities
+
+- <gap 1>: <what's missing in existing work, how our idea could fill it>
+- <gap 2>: ...
+
+## Implications for Our Idea
+
+- **Supports:** <what evidence strengthens our approach>
+- **Challenges:** <what evidence raises concerns>
+- **New directions:** <ideas sparked by the survey>
+
+## Open Questions
+
+- <question that needs deeper investigation>
+
+---
+*Paper metadata powered by [Semantic Scholar](https://www.semanticscholar.org/)*
+```
+
+If a survey on the same topic already exists, **overwrite it** (git tracks history).
+
+### 8. Commit & Report
 
 ```bash
-git add refs.db doc/agent/ && git commit -m "survey: found N papers on <topic>, M highly relevant"
+git add refs.db doc/agent/ doc/surveys/ && git commit -m "survey: <topic> — N papers, M highly relevant"
 ```
 
 Present a summary to the user:
 - Papers found (total, highly relevant, read)
 - Key findings that affect the idea
+- "Full survey in `doc/surveys/<topic_slug>.md`"
 - Knowledge gaps remaining
 - Suggested next mode: evaluate, propose, or more survey
