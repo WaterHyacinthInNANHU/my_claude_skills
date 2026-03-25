@@ -112,38 +112,72 @@ Input → [Module A] → [Module B] → Output
 
 ## 6. Experiment Plan
 
-### 6.1 Minimum Viable Experiment (Phase 1)
+### 6.1 Baselines
+
+Methods to compare against. Each must have a reproducible source.
+
+| # | Baseline | Paper | Code | Why Compare | Expected Gap |
+|---|----------|-------|------|-------------|-------------|
+| B1 | <method name> | [Author et al., Year](link) | [repo](link) / none | <main competitor / SOTA / ablation anchor> | <we expect +X% on metric Y> |
+| B2 | <method name> | [Author et al., Year](link) | [repo](link) / none | ... | ... |
+| B3 | <method name> | ... | ... | ... | ... |
+
+**Baseline resource requirements:**
+
+| Baseline | GPUs | Training Time | Data | Notes |
+|----------|------|--------------|------|-------|
+| B1 | <N>x <type> | <hours/days> | <dataset> | <from paper / verified by cloning repo> |
+| B2 | ... | ... | ... | ... |
+
+### 6.2 Minimum Viable Experiment (Phase 1)
 
 Goal: Validate core hypothesis with minimal cost.
 
-| Experiment | Purpose | Benchmark | Metric | Estimated Cost |
-|-----------|---------|-----------|--------|---------------|
-| <exp 1> | Prove <core claim> | <benchmark> | <metric> | <X>h on <Y> GPUs |
+| Experiment | Purpose | Benchmark | Baselines | Metric | Estimated Cost |
+|-----------|---------|-----------|-----------|--------|---------------|
+| <exp 1> | Prove <core claim> | <benchmark> | B1, B2 | <metric> | <X>h on <Y> GPUs |
+
+**Resource requirements (Phase 1):**
+
+| Item | Ours | Baselines (total) | Combined |
+|------|------|-------------------|----------|
+| GPU-hours | <X>h on <Y> GPUs | <X>h | <total>h |
+| Data | <datasets needed> | <datasets needed> | <union> |
+| Wall-clock | <days> | <days> | <max> |
 
 **Success criteria:** <what result would confirm the idea works>
 **Failure plan:** <what to do if it doesn't>
 
-### 6.2 Full Evaluation (Phase 2)
+### 6.3 Full Evaluation (Phase 2)
 
 | Experiment | Benchmark | Baselines | Metric | Estimated Cost |
 |-----------|-----------|-----------|--------|---------------|
-| <exp 1> | ... | [B1](link), [B2](link) | ... | ... |
+| <exp 1> | ... | B1, B2, B3 | ... | <X>h on <Y> GPUs |
 | <exp 2> | ... | ... | ... | ... |
 
-### 6.3 Ablation Studies
+**Resource requirements (Phase 2):**
 
-| Ablation | What It Tests | Expected Outcome |
-|---------|--------------|-----------------|
-| Remove component X | Is X necessary? | Performance drops by ~Y% |
-| ... | ... | ... |
+| Item | Ours | Baselines (total) | Combined |
+|------|------|-------------------|----------|
+| GPU-hours | <X>h on <Y> GPUs | <X>h | <total>h |
+| Data | <datasets> | <datasets> | <union> |
+| Wall-clock | <days> | <days> | <max> |
+
+### 6.4 Ablation Studies
+
+| Ablation | What It Tests | Expected Outcome | Cost |
+|---------|--------------|-----------------|------|
+| Remove component X | Is X necessary? | Performance drops by ~Y% | <X>h |
+| ... | ... | ... | ... |
 
 ---
 
-## 7. Resource Plan
+## 7. Resource Plan (Total)
 
 | Resource | Required | Available | Gap | Mitigation |
 |----------|---------|-----------|-----|-----------|
-| Compute | <X> GPU-hours | <Y> GPU-hours | <gap or none> | <if gap: what to cut> |
+| Compute (ours) | <X> GPU-hours | <Y> GPU-hours | <gap or none> | <if gap: what to cut> |
+| Compute (baselines) | <X> GPU-hours | <Y> GPU-hours | ... | <re-use published numbers if gap> |
 | Data | <datasets> | <what's accessible> | ... | ... |
 | Time | <total est.> | <deadline> | ... | ... |
 | Code | <build on X> | <available?> | ... | ... |
