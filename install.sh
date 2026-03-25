@@ -53,7 +53,7 @@ install_core() {
         [ -f "$d/SKILL.md" ] || continue
         ln -sfn "$d" "$SKILL_DIR/$name"
         echo "  ✓ $name"
-        ((count++))
+        ((count++)) || true
     done
     echo "  ($count core skills)"
 }
@@ -79,7 +79,7 @@ install_all_in_group() {
         name=$(basename "$d")
         ln -sfn "$d" "$SKILL_DIR/$name"
         echo "  ✓ $name"
-        ((count++))
+        ((count++)) || true
     done
     echo "  ($count $group skills)"
 }
