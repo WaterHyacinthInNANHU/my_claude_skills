@@ -73,6 +73,8 @@ Types: `seed`, `survey`, `validate`, `direction`, `decide`, `dead-end`, `refs`, 
 | `doc/agent/validations/` | Detailed validation reports |
 | `doc/agent/findings.md` | Patterns, dead ends, insights |
 | `doc/agent/decisions.md` | Direction and pivot decisions |
+| `doc/proposals/evaluation.md` | Accumulated evaluation history (user-facing) |
+| `doc/proposals/draft.md` | Current proposal snapshot (user-facing) |
 
 ---
 
