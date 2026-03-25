@@ -119,64 +119,62 @@ Save **two outputs**:
 
 **Agent working file** — `doc/agent/validations/val_<version>.md` (detailed internal record)
 
-**User-facing evaluation** — `doc/proposals/evaluation.md` (accumulated, readable)
+**User-facing evaluation** — `doc/proposals/evaluation.md` (overwritten each time; git tracks history)
 
-Update `doc/proposals/evaluation.md` — this file is **append-based**: each evaluation adds a section, building a history the user can read. Structure:
+Write `doc/proposals/evaluation.md`:
 
 ```markdown
-# Evaluation Report: <tag>
+# Evaluation: <version> — <1-line idea summary>
 
-> Last updated: <date>
-> Convergence threshold: <from config.md>
+> **Date:** <date>
+> **Branch:** <current branch>
+> **Verdict:** <Promising / Needs work / Weak / Abandon>
+> **Convergence threshold:** <from config.md>
 
-## Summary
+## Scores
 
-| Version | Branch | Scores | Avg | Verdict | Date |
-|---------|--------|--------|-----|---------|------|
-| v0 | ideate/<tag> | N:3 T:4 C:3 F:5 R:2 | 3.4 | Needs work | 2026-03-24 |
-| A | ideate/<tag>/A | N:4 T:4 C:4 F:3 R:3 | 3.6 | Promising | 2026-03-24 |
-| A.1 | ideate/<tag>/A.1 | N:4 T:4 C:4 F:4 R:3 | 3.8 | Promising | 2026-03-25 |
-
-## <version>: <1-line idea summary> (<date>)
-
-### Scores
 | Dimension | Rating | Weight | Notes |
 |-----------|--------|--------|-------|
 | Novelty | X/5 | ... | ... |
-| ... | ... | ... | ... |
+| Theory | X/5 | ... | ... |
+| Contribution | X/5 | ... | ... |
+| Feasibility | X/5 | ... | ... |
+| Risk | X/5 | ... | ... |
 | **Weighted Avg** | **X.X** | | |
 
-### Novelty Assessment
+**Gaps to close:** <dimensions below threshold and what's needed>
+
+## Novelty Assessment
+
 <novelty level> — <comparison table vs. similar work>
 
-### Theoretical Sanity
+## Theoretical Sanity
+
 <rating> — <key reasoning>
 
-### Contribution
+## Contribution
+
 <type> — <significance assessment>
 
-### Feasibility
+## Feasibility
+
 <flag> — <resource comparison table>
 
-### Risks
+## Risks
+
 <risk table with mitigations>
 
-### Verdict
+## Verdict
+
 **<Promising / Needs work / Weak / Abandon>**
 - Strengths: ...
-- Gaps to close: <dimensions below threshold>
+- Weaknesses: ...
 - Suggested next: <propose / survey / specific action>
-
----
-(next evaluation appended below)
 ```
-
-**On first evaluation:** create the file with header + summary table + first entry.
-**On subsequent evaluations:** update the summary table (add/update row) and append a new section.
 
 ```bash
 # Update idea card with scores
-# Update doc/proposals/evaluation.md
+# Write doc/proposals/evaluation.md
 # Link key papers
 python3 scripts/refs.py link <version> <paper_id> <role> --note "..."
 git add doc/agent/ doc/proposals/evaluation.md refs.db && git commit -m "validate(<version>): <overall> -- <key_issues>"
@@ -188,6 +186,6 @@ git notes add -m "Scores: N:X T:X C:X F:X R:X avg=X.X" HEAD
 **ASK USER:**
 - Show the validation summary
 - Highlight dimensions below convergence threshold
-- "The full evaluation history is in `doc/proposals/evaluation.md`"
+- "Full evaluation in `doc/proposals/evaluation.md` (previous evals in git history)"
 - "Want to proceed, pivot, or add constraints?"
 - Suggest: `/idea_refinery propose` to generate improvement directions
