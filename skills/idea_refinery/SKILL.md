@@ -17,19 +17,66 @@ Iteratively refine a coarse research idea into a validated, concrete proposal th
 
 Identify the user's intent, then read the corresponding mode file from `modes/`.
 
-| User Intent | Mode | File |
-|-------------|------|------|
-| "set up a new idea workspace" | **setup** | `modes/setup.md` |
-| "survey literature on X" | **survey** | `modes/survey.md` |
-| "evaluate/validate the current idea" | **evaluate** | `modes/evaluate.md` |
-| "propose new directions" | **propose** | `modes/propose.md` |
-| "auto-explore the idea tree" | **auto** | `modes/auto.md` |
-| "show me the current proposal" | **draft** | `modes/draft.md` |
-| "write the final proposal" | **converge** | `modes/converge.md` |
+| Command | Mode | File |
+|---------|------|------|
+| `/idea_refinery setup` | **setup** | `modes/setup.md` |
+| `/idea_refinery survey [topic]` | **survey** | `modes/survey.md` |
+| `/idea_refinery evaluate` | **evaluate** | `modes/evaluate.md` |
+| `/idea_refinery propose` | **propose** | `modes/propose.md` |
+| `/idea_refinery auto` | **auto** | `modes/auto.md` |
+| `/idea_refinery draft` | **draft** | `modes/draft.md` |
+| `/idea_refinery converge` | **converge** | `modes/converge.md` |
+| `/idea_refinery merge <dir>` | merge direction into main | (inline, see below) |
+| `/idea_refinery switch <dir>` | switch to a direction branch | (inline, see below) |
+| `/idea_refinery kill` | mark current direction as dead end | (inline, see below) |
+| `/idea_refinery status` | show compact tree + scores | (inline, see below) |
+| `/idea_refinery next` | suggest and run the logical next mode | (inline, see below) |
+
+Also matches natural language (e.g., "evaluate this idea" -> evaluate mode).
 
 **If the user gives a raw idea with no existing workspace**, start with **setup** then proceed to **survey** or **auto**.
 
 **If ambiguous**, ask: "Which mode? setup / survey / evaluate / propose / auto / draft / converge"
+
+### Inline Commands
+
+These don't need a mode file — execute directly:
+
+**`/idea_refinery merge <dir>`** — Merge a direction into the main branch:
+```bash
+git checkout ideate/<tag> && git merge ideate/<tag>/<dir>
+# Create new idea version card from the merged direction
+# Update sketch.md
+git add doc/agent/ && git commit -m "decide: merge <dir> into main"
+```
+
+**`/idea_refinery switch <dir>`** — Switch to a direction branch:
+```bash
+git checkout ideate/<tag>/<dir>
+python3 scripts/status.py
+# Report current state on that branch
+```
+
+**`/idea_refinery kill`** — Mark current direction as dead end:
+```bash
+# Commit any uncommitted work
+git add doc/agent/ && git commit -m "dead-end(<dir>): <reason>"
+git checkout ideate/<tag>
+# Update sketch.md to mark direction as dead
+```
+
+**`/idea_refinery status`** — Show current state:
+```bash
+python3 scripts/status.py
+```
+
+**`/idea_refinery next`** — Suggest the logical next step based on current state:
+1. Run `python3 scripts/status.py --json`
+2. If no scores yet -> suggest **evaluate**
+3. If scores exist but below threshold -> suggest **propose** (or **survey** if knowledge gaps)
+4. If all scores meet threshold -> suggest **converge**
+5. If multiple directions unscored -> suggest **auto**
+6. Tell the user what and why, then proceed if they agree
 
 ## Agent Reading Order
 
@@ -79,6 +126,22 @@ ideate/<tag>                      <- main branch (best version)
 +-- ideate/<tag>/B
 +-- ideate/<tag>/C
 ```
+
+### Navigating the Idea Tree
+
+The user controls which node the agent works on via commands or natural language:
+
+| User Says | Command Equivalent |
+|-----------|-------------------|
+| "this direction looks good, merge it" | `/idea_refinery merge <dir>` |
+| "explore direction A" / "switch to A" | `/idea_refinery switch A` |
+| "this is a dead end" / "kill this" | `/idea_refinery kill` |
+| "go deeper on this" / "sub-refine" | `git checkout -b ideate/<tag>/<dir>.<N>`, then propose or evaluate |
+| "what should we do next?" | `/idea_refinery next` |
+| "write it up" / "let me see it" | `/idea_refinery draft` |
+| "finalize" / "we're done" | `/idea_refinery converge` |
+
+**Key principle:** The user drives tree navigation; modes operate on the current branch. If the user's intent implies a branch switch, do it and confirm before proceeding.
 
 ### Git Commit Conventions
 

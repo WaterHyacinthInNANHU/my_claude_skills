@@ -51,6 +51,16 @@ Write `doc/proposals/draft.md` following the **same structure as `proposal.md.te
 
 ---
 
+## Brief
+
+> **One-liner:** <single sentence describing the core idea>
+> **Key insight:** <what makes this different from existing work>
+> **Scores:** N:X T:X C:X F:X R:X (avg=X.X, threshold=X.X)
+> **Gaps:** <dimensions below threshold and what's needed to close them>
+> **Next action:** <what should happen next — e.g., "evaluate after adding risk mitigation">
+
+---
+
 ## Abstract
 
 <3-5 sentences: problem, approach, expected contribution. Best-effort from current state.>
