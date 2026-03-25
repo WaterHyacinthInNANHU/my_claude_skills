@@ -24,11 +24,12 @@ Identify the user's intent, then read the corresponding mode file from `modes/`.
 | "evaluate/validate the current idea" | **evaluate** | `modes/evaluate.md` |
 | "propose new directions" | **propose** | `modes/propose.md` |
 | "auto-explore the idea tree" | **auto** | `modes/auto.md` |
+| "show me the current proposal" | **draft** | `modes/draft.md` |
 | "write the final proposal" | **converge** | `modes/converge.md` |
 
 **If the user gives a raw idea with no existing workspace**, start with **setup** then proceed to **survey** or **auto**.
 
-**If ambiguous**, ask: "Which mode? setup / survey / evaluate / propose / auto / converge"
+**If ambiguous**, ask: "Which mode? setup / survey / evaluate / propose / auto / draft / converge"
 
 ## Agent Reading Order
 
@@ -92,6 +93,7 @@ Format: `<type>(<scope>): <what and why>`
 | `decide` | User chose a direction |
 | `refine` | Idea updated |
 | `dead-end` | Direction abandoned |
+| `draft` | Proposal snapshot |
 | `converge` | Final proposal |
 | `refs` | Reference DB updated |
 | `checkpoint` | Safety save |
