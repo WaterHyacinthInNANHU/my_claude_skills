@@ -165,3 +165,22 @@ Present a summary to the user:
 - "Full survey in `doc/surveys/<topic_slug>.md`"
 - Knowledge gaps remaining
 - Suggested next mode: evaluate, propose, or more survey
+
+### 9. Follow-up Questions (Subagent)
+
+When the user asks questions about the survey or literature (e.g., "how does paper X compare to Y?", "explain the method in Z", "what's the difference between A and B?"), **use a subagent** to answer:
+
+```
+Agent(
+  description="Answer literature question",
+  prompt="Read doc/surveys/<topic>.md and refs.db. Question: <user question>.
+          Use refs.py search, AlphaXiv, and Semantic Scholar to find the answer.
+          Return a concise answer with paper citations."
+)
+```
+
+**Why subagent:** Literature Q&A can consume significant context (reading papers, fetching content). Running it in a subagent preserves the main agent's context for the ongoing refinement workflow.
+
+**When to use subagent vs. answering directly:**
+- **Subagent**: needs to read/fetch papers, compare methods in detail, look up specific claims
+- **Direct**: simple factual question answerable from refs.db or the survey document already in context
