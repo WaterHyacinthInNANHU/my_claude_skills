@@ -120,6 +120,11 @@ cp "$SKILL_DIR/templates/scripts/status.py" scripts/status.py
 chmod +x scripts/status.py
 echo "Installed scripts/status.py"
 
+# Install search_refs.py
+cp "$SKILL_DIR/templates/scripts/search_refs.py" scripts/search_refs.py
+chmod +x scripts/search_refs.py
+echo "Installed scripts/search_refs.py"
+
 # Install hooks
 cp "$SKILL_DIR/templates/hooks/restore-context.sh" .claude/hooks/
 chmod +x .claude/hooks/restore-context.sh
