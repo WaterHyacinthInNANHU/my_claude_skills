@@ -426,6 +426,7 @@ def cmd_export_bib(args):
         print(bib)
 
     print(f"% Exported {len(rows)} entries", file=sys.stderr)
+    print(f"% Paper metadata powered by Semantic Scholar (https://www.semanticscholar.org/)")
     conn.close()
 
 
@@ -451,7 +452,7 @@ def cmd_export_md(args):
         print(f"| {i} | {paper_col} | {r['year'] or '?'} | {r['venue'] or ''} | "
               f"{r['relevance'] or '?'} | {r['direction'] or ''} | {code_col} |")
 
-    print(f"\n*{len(rows)} papers*", file=sys.stderr)
+    print(f"\n*{len(rows)} papers — metadata powered by [Semantic Scholar](https://www.semanticscholar.org/)*")
     conn.close()
 
 
