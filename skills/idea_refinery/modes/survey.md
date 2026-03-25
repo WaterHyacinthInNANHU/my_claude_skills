@@ -31,11 +31,14 @@ Scope the survey:
 
 Use all available discovery methods:
 
+**All Semantic Scholar calls must include** `-H "x-api-key: $S2_API_KEY"`. If not set, warn user.
+
 | Method | When to Use | How |
 |--------|------------|-----|
-| Semantic Scholar API | Keyword search, citation graph | `curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"` |
+| Semantic Scholar API | Keyword search, citation graph | `curl -s -H "x-api-key: $S2_API_KEY" "https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"` |
 | Semantic Scholar (recent) | Find cutting-edge work | Same but add `&year=2024-2026` |
-| Semantic Scholar (citations) | Find successors of a paper | `.../paper/ArXiv:{ID}?fields=citations.title,citations.year,citations.authors,citations.externalIds,citations.citationCount` |
+| Semantic Scholar (citations) | Find successors of a paper | `curl -s -H "x-api-key: $S2_API_KEY" ".../paper/ArXiv:{ID}?fields=citations.title,citations.year,citations.authors,citations.externalIds,citations.citationCount"` |
+| Semantic Scholar (references) | Find predecessors | Same URL but `fields=references.title,...` |
 | Web search | Broad sweep, surveys | `WebSearch: "<topic>" site:arxiv.org` |
 | Papers With Code | Find benchmarks, code | `WebSearch: "<topic>" site:paperswithcode.com` |
 | Citation chain | Trace research lineage | Follow references + citing papers (see `/paper_related_works`) |

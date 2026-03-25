@@ -95,13 +95,24 @@ git log --graph --oneline -15 --show-notes --all   # Git history
 
 **IMPORTANT: These methods apply to ALL modes (survey, evaluate, propose, auto) — any time you need to find or read a paper.**
 
+## Semantic Scholar API Key
+
+All Semantic Scholar API calls **must** include the API key from `$S2_API_KEY`:
+
+```bash
+curl -s -H "x-api-key: $S2_API_KEY" "https://api.semanticscholar.org/graph/v1/..."
+```
+
+If `$S2_API_KEY` is not set, warn the user and proceed without it (lower rate limits).
+
 ## Discover Papers
 
 | Method | How | When |
 |--------|-----|------|
-| Semantic Scholar API | `curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"` | Keyword search |
+| Semantic Scholar API | `curl -s -H "x-api-key: $S2_API_KEY" "https://api.semanticscholar.org/graph/v1/paper/search?query=<KEYWORDS>&limit=20&fields=title,year,authors,citationCount,externalIds,abstract&sort=citationCount:desc"` | Keyword search |
 | Semantic Scholar (recent) | Same but add `&year=2024-2026` | Cutting-edge work |
-| Semantic Scholar (citations) | `.../paper/ArXiv:{ID}?fields=citations.title,citations.year,citations.authors,citations.externalIds,citations.citationCount` | Find successors |
+| Semantic Scholar (citations) | `curl -s -H "x-api-key: $S2_API_KEY" "https://api.semanticscholar.org/graph/v1/paper/ArXiv:{ID}?fields=citations.title,citations.year,citations.authors,citations.externalIds,citations.citationCount"` | Find successors |
+| Semantic Scholar (references) | Same URL but `fields=references.title,...` | Find predecessors |
 | Web search | `WebSearch: "<topic>" site:arxiv.org` | Broad sweep |
 | Papers With Code | `WebSearch: "<topic>" site:paperswithcode.com` | Benchmarks, code |
 | Local DB | `python3 scripts/refs.py search "query"` | Already-collected papers |
