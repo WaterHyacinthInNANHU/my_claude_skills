@@ -2,7 +2,16 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": {},
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/restore-context.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "resume",
         "hooks": [
           {
             "type": "command",
