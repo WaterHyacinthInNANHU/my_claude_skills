@@ -1215,16 +1215,44 @@ export LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH:-}
 
 ## BCOE Storage
 
-| Location | Path | Notes |
-|----------|------|-------|
-| Home | `/home/<dept>/username` | NFS-mounted, shared filesystem (~88 TB total) |
-| Temp | `/tmp` | Node-local |
-| RAM disk | `/dev/shm` | Uses job memory allocation |
+| Location | Path | Type | Capacity | Backed Up | Best For |
+|----------|------|------|----------|-----------|----------|
+| Home | `~` | NFS (Synology NAS, crisnas1) | ~88 TB shared (~33 TB free) | Yes (ZFS snapshots) | Personal software, settings, code |
+| Research group | `/data/<PI_name>` (e.g. `/data/JiachenLi`) | NFS (same NAS) | Shared with home pool | Yes (ZFS snapshots) | Shared group data, collaborative files |
+| Scratch | `/scratch` | Local SSD | ~1 TB per node | **No** | Fast I/O: datasets, model weights, training |
+| Temp | `/tmp` | Node-local | Varies | No | Temporary files |
+| RAM disk | `/dev/shm` | tmpfs | Uses job memory allocation | No | Ultra-fast temp buffers |
 
-**No bigdata or scratch filesystems.** All project data lives under home. Monitor disk usage:
+### Storage details
+
+- **No per-user quotas** detected on any filesystem — space is shared
+- **Home + research group** are on the same NFS mount (NFSv3 from Synology NAS). Slower I/O but persistent across all nodes
+- **`/scratch`** is local SSD — fast but **ephemeral** (data lost after job ends, not shared across nodes). Jobs must copy data in/out
+- **ZFS snapshots** for recovery: check `/home/.zfs/snapshot` or `/data/<PI_name>/.zfs/snapshot` to recover deleted files
+- **Project directories**: for cross-group sharing, email hpc-support@cs.ucr.edu to request setup
+
+### Performance guidance
+
+```
+┌────────────────┬─────────────────────────┬────────────────────────────┐
+│                │   /home, /data (NFS)    │     /scratch (local SSD)   │
+├────────────────┼─────────────────────────┼────────────────────────────┤
+│ I/O speed      │ Slow (network)          │ Fast (local)               │
+│ Persistence    │ Across all nodes        │ This node only, ephemeral  │
+│ Best for       │ Code, configs, results  │ Datasets, models, training │
+└────────────────┴─────────────────────────┴────────────────────────────┘
+```
+
+**Recommendation**: For training jobs, copy datasets/models to `/scratch` at job start for fast I/O, then copy results back to `/data/<PI_name>/` when done. Keep code and configs on home/research dirs.
+
+### Monitor disk usage
+
 ```bash
-df -h ~
-du -sh ~/workspace/*
+df -h ~                        # Home/NFS usage
+df -h /scratch                 # Local scratch (on compute node)
+du -sh ~/workspace/*           # Per-project breakdown
+ls /home/.zfs/snapshot          # List available backup snapshots
+ls /data/<PI_name>/.zfs/snapshot  # Research dir snapshots
 ```
 
 ## BCOE Auto-Configuration
