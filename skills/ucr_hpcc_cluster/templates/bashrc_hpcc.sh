@@ -6,45 +6,88 @@
 
 # ── Interactive Sessions ──────────────────────────────────────────────────
 
+# Claude Code alias
+alias cc='claude --dangerously-skip-permissions'
+
 # Launch Claude Code in an interactive SLURM session
 # Usage: ccn [hours]
-# Examples: ccn (2h), ccn 4 (4h), ccn 24 (24h)
+# Examples:
+#   ccn           # 2 hours (short partition)
+#   ccn 4         # 4 hours (auto-selects epyc)
+#   ccn 24        # 24 hours
 ccn() {
     local hours="${1:-2}"
     local dir="$(pwd)"
     local partition="short"
+    local cpucnt="4"
+    local mem="16"
 
+    # Auto-select partition based on time
     if (( hours > 2 )); then
         partition="epyc"
     fi
 
-    echo "Launching Claude Code on $partition partition (${hours}h, 16GB RAM)..."
+    echo "Launching Claude Code on $partition partition (${hours}h, ${mem}GB RAM)..."
     echo "Working directory: $dir"
     echo "To exit: type 'exit' or press Ctrl+D"
     echo ""
 
-    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+    srun -p "$partition" -c "$cpucnt" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
 }
 
 # Launch VS Code tunnel in an interactive SLURM session
-# Usage: vsc [hours]
-# Examples: vsc (2h), vsc 5 (5h), vsc 24 (24h)
+# Usage: vsc [hours] [cpus] [memory_gb]
+# Examples:
+#   vsc              # 2h, 8 CPUs, 32GB (default)
+#   vsc 5            # 5h, 8 CPUs, 32GB
+#   vsc 5 16 64      # 5h, 16 CPUs, 64GB
 vsc() {
     local hours="${1:-2}"
+    local cpus="${2:-8}"
+    local mem="${3:-32}"
     local partition="short"
 
     if (( hours > 2 )); then
         partition="epyc"
     fi
 
-    echo "Launching VS Code tunnel on $partition partition (${hours}h)..."
+    echo "VS Code tunnel: $partition partition (${hours}h, ${cpus} CPUs, ${mem}GB RAM)"
+    echo ""
+
+    # Estimate wait time using sbatch --test-only
+    local test_script=$(mktemp)
+    echo -e "#!/bin/bash\n#SBATCH -p $partition\n#SBATCH -c $cpus\n#SBATCH --mem=${mem}GB\n#SBATCH -t ${hours}:00:00\nsleep 1" > "$test_script"
+    local estimate=$(sbatch --test-only "$test_script" 2>&1)
+    rm -f "$test_script"
+
+    if echo "$estimate" | grep -q "to start at"; then
+        local start_time=$(echo "$estimate" | grep -oP "to start at \K[0-9T:-]+")
+        local start_epoch=$(date -d "$start_time" +%s 2>/dev/null)
+        local now_epoch=$(date +%s)
+        if [[ -n "$start_epoch" ]]; then
+            local wait_secs=$((start_epoch - now_epoch))
+            if (( wait_secs <= 0 )); then
+                echo "Estimated wait: Starting immediately"
+            elif (( wait_secs < 60 )); then
+                echo "Estimated wait: <1 minute"
+            elif (( wait_secs < 3600 )); then
+                echo "Estimated wait: $((wait_secs / 60)) minutes"
+            else
+                echo "Estimated wait: $((wait_secs / 3600))h $((wait_secs % 3600 / 60))m (start ~$start_time)"
+            fi
+        fi
+    else
+        echo "Estimated wait: Unable to determine"
+    fi
+
+    echo ""
     echo "After authorization, connect via:"
     echo "  - Browser: https://vscode.dev/tunnel/<tunnel-name>"
     echo "  - Desktop: Click green '><' icon -> Connect to Tunnel"
     echo "To exit: Ctrl+C to stop tunnel, then 'exit'"
     echo ""
 
-    srun -p "$partition" -c 32 --mem=64GB -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
+    srun -p "$partition" -c "$cpus" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
 }
 
 # Quick interactive session
