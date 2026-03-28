@@ -43,6 +43,17 @@ Use all available discovery methods:
 | Papers With Code | Find benchmarks, code | `WebSearch: "<topic>" site:paperswithcode.com` |
 | Citation chain | Trace research lineage | Follow references + citing papers (see `/paper_related_works`) |
 
+**Fastest bootstrap strategy — do this FIRST before broad keyword searches:**
+
+1. **Anchor paper**: Find the most relevant *recent* paper (last 1-2 years, high citations) on the topic. Read its **Related Work** section and **Experiment baselines** table via AlphaXiv. These give you:
+   - The landscape of prior approaches (from Related Work)
+   - The strongest competing methods with concrete numbers (from baselines)
+   - Key citations to follow for both foundational and state-of-the-art work
+
+2. **Survey/review papers**: Search for surveys (`WebSearch: "<topic> survey" site:arxiv.org`). Read the **taxonomy/categorization** sections and **comparison tables** — a single survey paper provides a curated map of the entire field.
+
+After reading these sections, extract cited paper IDs and add them to refs.db. Then selectively read the most relevant cited papers. One well-chosen anchor paper or survey covers more ground than dozens of API queries.
+
 ### 3. Read Papers
 
 **Always try AlphaXiv first** for any arXiv paper:
