@@ -18,20 +18,88 @@ Append the following block to `~/.bashrc` (check if already present first by sea
 ```bash
 # ── UCR HPCC Cluster Helpers ───────────────────────────────────────────────
 
-# Launch Claude Code on compute node: ccn [hours]
+# Claude Code alias
+alias cc='claude --dangerously-skip-permissions'
+
+# Launch Claude Code in an interactive SLURM session
+# Usage: ccn [hours]
+# Examples:
+#   ccn           # 2 hours (short partition)
+#   ccn 4         # 4 hours (auto-selects epyc)
+#   ccn 24        # 24 hours
 ccn() {
-    local hours="${1:-2}" dir="$(pwd)" partition="short"
-    (( hours > 2 )) && partition="epyc"
-    echo "Claude Code on $partition (${hours}h) | Exit: Ctrl+C then 'exit'"
-    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+    local hours="${1:-2}"
+    local dir="$(pwd)"
+    local partition="short"
+    local cpucnt="4"
+    local mem="16"
+
+    # Auto-select partition based on time
+    if (( hours > 2 )); then
+        partition="epyc"
+    fi
+
+    echo "Launching Claude Code on $partition partition (${hours}h, ${mem}GB RAM)..."
+    echo "Working directory: $dir"
+    echo "To exit: type 'exit' or press Ctrl+D"
+    echo ""
+
+    srun -p "$partition" -c "$cpucnt" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
 }
 
-# Launch VS Code tunnel on compute node: vsc [hours]
+# Launch VS Code tunnel in an interactive SLURM session
+# Usage: vsc [hours] [cpus] [memory_gb]
+# Examples:
+#   vsc              # 2h, 8 CPUs, 32GB (default)
+#   vsc 5            # 5h, 8 CPUs, 32GB
+#   vsc 5 16 64      # 5h, 16 CPUs, 64GB
 vsc() {
-    local hours="${1:-2}" partition="short"
-    (( hours > 2 )) && partition="epyc"
-    echo "VS Code tunnel on $partition (${hours}h) | Connect: https://vscode.dev/tunnel/<name>"
-    srun -p "$partition" -c 32 --mem=64GB -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
+    local hours="${1:-2}"
+    local cpus="${2:-8}"
+    local mem="${3:-32}"
+    local partition="short"
+
+    if (( hours > 2 )); then
+        partition="epyc"
+    fi
+
+    echo "VS Code tunnel: $partition partition (${hours}h, ${cpus} CPUs, ${mem}GB RAM)"
+    echo ""
+
+    # Estimate wait time using sbatch --test-only
+    local test_script=$(mktemp)
+    echo -e "#!/bin/bash\n#SBATCH -p $partition\n#SBATCH -c $cpus\n#SBATCH --mem=${mem}GB\n#SBATCH -t ${hours}:00:00\nsleep 1" > "$test_script"
+    local estimate=$(sbatch --test-only "$test_script" 2>&1)
+    rm -f "$test_script"
+
+    if echo "$estimate" | grep -q "to start at"; then
+        local start_time=$(echo "$estimate" | grep -oP "to start at \K[0-9T:-]+")
+        local start_epoch=$(date -d "$start_time" +%s 2>/dev/null)
+        local now_epoch=$(date +%s)
+        if [[ -n "$start_epoch" ]]; then
+            local wait_secs=$((start_epoch - now_epoch))
+            if (( wait_secs <= 0 )); then
+                echo "Estimated wait: Starting immediately"
+            elif (( wait_secs < 60 )); then
+                echo "Estimated wait: <1 minute"
+            elif (( wait_secs < 3600 )); then
+                echo "Estimated wait: $((wait_secs / 60)) minutes"
+            else
+                echo "Estimated wait: $((wait_secs / 3600))h $((wait_secs % 3600 / 60))m (start ~$start_time)"
+            fi
+        fi
+    else
+        echo "Estimated wait: Unable to determine"
+    fi
+
+    echo ""
+    echo "After authorization, connect via:"
+    echo "  - Browser: https://vscode.dev/tunnel/<tunnel-name>"
+    echo "  - Desktop: Click green '><' icon -> Connect to Tunnel"
+    echo "To exit: Ctrl+C to stop tunnel, then 'exit'"
+    echo ""
+
+    srun -p "$partition" -c "$cpus" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "module load vscode && code tunnel"
 }
 
 # Quick interactive node: node [hours] [partition]
@@ -88,13 +156,15 @@ When configuring for a user:
 
 | Command | Description |
 |---------|-------------|
-| `ccn` | Launch Claude Code (2h default) |
+| `cc` | Run Claude Code (alias for `claude --dangerously-skip-permissions`) |
+| `ccn` | Launch Claude Code on compute node (2h default) |
 | `ccn 24` | Launch Claude Code for 24h |
-| `vsc` | Launch VS Code tunnel (2h default) |
-| `vsc 8` | Launch VS Code tunnel for 8h |
+| `vsc` | Launch VS Code tunnel on compute node (2h default) |
+| `vsc 5 16 64` | VS Code tunnel: 5h, 16 CPUs, 64GB |
 | `node` | Interactive shell (2h default) |
 | `gpunode` | GPU interactive shell (1h default) |
 | `sq` | Show my jobs |
+| `sqstart` | Show jobs with estimated start times |
 | `sqwatch` | Watch my jobs (live refresh) |
 | `sqgpu` | Show all GPU jobs |
 | `gpus` | Show GPU availability |
@@ -1164,11 +1234,86 @@ du -sh ~/workspace/*
 ```bash
 # ── BCOE Cluster Helpers ──────────────────────────────────────────────────
 
-# Launch Claude Code on compute node: ccn [hours]
+# Claude Code alias
+alias cc='claude --dangerously-skip-permissions'
+
+# Launch Claude Code in an interactive SLURM session
+# Usage: ccn [hours]
+# Examples:
+#   ccn           # 2 hours (batch partition)
+#   ccn 4         # 4 hours
+#   ccn 24        # 24 hours
 ccn() {
-    local hours="${1:-2}" dir="$(pwd)" partition="batch"
-    echo "Claude Code on $partition (${hours}h) | Exit: Ctrl+C then 'exit'"
-    srun -p "$partition" -c 4 --mem=16GB -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+    local hours="${1:-2}"
+    local dir="$(pwd)"
+    local partition="batch"
+    local cpucnt="4"
+    local mem="16"
+
+    echo "Launching Claude Code on $partition partition (${hours}h, ${mem}GB RAM)..."
+    echo "Working directory: $dir"
+    echo "To exit: type 'exit' or press Ctrl+D"
+    echo ""
+
+    srun -p "$partition" -c "$cpucnt" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "cd '$dir' && claude --dangerously-skip-permissions"
+}
+
+# Launch VS Code tunnel in an interactive SLURM session
+# Usage: vsc [hours] [cpus] [memory_gb]
+# Examples:
+#   vsc              # 2h, 8 CPUs, 32GB (default)
+#   vsc 5            # 5h, 8 CPUs, 32GB
+#   vsc 5 16 64      # 5h, 16 CPUs, 64GB
+vsc() {
+    local hours="${1:-2}"
+    local cpus="${2:-8}"
+    local mem="${3:-32}"
+    local partition="batch"
+
+    if ! command -v code &>/dev/null; then
+        echo "Error: VS Code CLI not found. Install with:"
+        echo "  curl -Lk 'https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64' -o /tmp/vscode_cli.tar.gz"
+        echo "  tar -xzf /tmp/vscode_cli.tar.gz -C \$HOME/.local/bin/ && rm /tmp/vscode_cli.tar.gz"
+        return 1
+    fi
+
+    echo "VS Code tunnel: $partition partition (${hours}h, ${cpus} CPUs, ${mem}GB RAM)"
+    echo ""
+
+    # Estimate wait time using sbatch --test-only
+    local test_script=$(mktemp)
+    echo -e "#!/bin/bash\n#SBATCH -p $partition\n#SBATCH -c $cpus\n#SBATCH --mem=${mem}GB\n#SBATCH -t ${hours}:00:00\nsleep 1" > "$test_script"
+    local estimate=$(sbatch --test-only "$test_script" 2>&1)
+    rm -f "$test_script"
+
+    if echo "$estimate" | grep -q "to start at"; then
+        local start_time=$(echo "$estimate" | grep -oP "to start at \K[0-9T:-]+")
+        local start_epoch=$(date -d "$start_time" +%s 2>/dev/null)
+        local now_epoch=$(date +%s)
+        if [[ -n "$start_epoch" ]]; then
+            local wait_secs=$((start_epoch - now_epoch))
+            if (( wait_secs <= 0 )); then
+                echo "Estimated wait: Starting immediately"
+            elif (( wait_secs < 60 )); then
+                echo "Estimated wait: <1 minute"
+            elif (( wait_secs < 3600 )); then
+                echo "Estimated wait: $((wait_secs / 60)) minutes"
+            else
+                echo "Estimated wait: $((wait_secs / 3600))h $((wait_secs % 3600 / 60))m (start ~$start_time)"
+            fi
+        fi
+    else
+        echo "Estimated wait: Unable to determine"
+    fi
+
+    echo ""
+    echo "After authorization, connect via:"
+    echo "  - Browser: https://vscode.dev/tunnel/<tunnel-name>"
+    echo "  - Desktop: Click green '><' icon -> Connect to Tunnel"
+    echo "To exit: Ctrl+C to stop tunnel, then 'exit'"
+    echo ""
+
+    srun -p "$partition" -c "$cpus" --mem="${mem}GB" -t "${hours}:00:00" --pty bash -c "code tunnel"
 }
 
 # Quick interactive node: node [hours] [partition]
@@ -1183,10 +1328,18 @@ gpunode() {
     srun -p gpu --gres=gpu:1 -c 8 --mem=64GB -t "${hours}:00:00" --pty bash -l
 }
 
-# Job monitoring aliases
+# ── Job Monitoring ────────────────────────────────────────────────────────
+
+# Show my jobs (formatted)
 alias sq='squeue -u $USER -o "%.10i %.12j %.10P %.8T %.10M %.10l %.6C %.10m %R" --sort=-S'
+
+# Show my jobs with estimated start times
 alias sqstart='squeue -u $USER --start -o "%.10i %.12j %.10P %.8T %.19S %.10l %R"'
+
+# Live-refresh my jobs every 5s
 alias sqwatch='watch -n 5 "squeue -u $USER -o \"%.10i %.12j %.10P %.8T %.10M %.10l %.6C %R\""'
+
+# Show all GPU jobs
 alias sqgpu='squeue -p gpu -o "%.10i %.12j %.10P %.8u %.8T %.10M %b %R"'
 
 # GPU availability
